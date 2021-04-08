@@ -23,6 +23,8 @@
 #include "db/version_edit.h"
 #include "port/port.h"
 #include "port/thread_annotations.h"
+#include "db/skiplist.h"
+#include "table/block.h"
 
 namespace leveldb {
 
@@ -114,6 +116,20 @@ class Version {
   // Return a human readable string that describes this version's contents.
   std::string DebugString() const;
 
+// ***********************************************************
+// TODO:
+  struct KeyComparator {
+        const InternalKeyComparator comparator;
+        explicit KeyComparator(const InternalKeyComparator& c) : comparator(c) {}
+        int operator()(const char* a, const char* b) const;
+  };
+  typedef SkipList<const char*, KeyComparator> GITable;
+  void GlobalIndexBuilder(void* arg, bool (*func)(void*, int, FileMetaData*));
+  void SkipListGlobalIndexBuilder(Iterator* iiter, uint64_t file_number, 
+                                 uint64_t file_size, GITable* gitable_);
+
+// ***********************************************************
+
  private:
   friend class Compaction;
   friend class VersionSet;
@@ -162,6 +178,13 @@ class Version {
   // are initialized by Finalize().
   double compaction_score_;
   int compaction_level_;
+
+    // ***************************************************************
+    // TODO:
+    // Done.
+    
+    std::vector<GITable*> index_files_[config::kNumLevels];
+    // **********************************************************
 };
 
 class VersionSet {

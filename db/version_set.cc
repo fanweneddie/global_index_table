@@ -18,6 +18,7 @@
 #include "table/two_level_iterator.h"
 #include "util/coding.h"
 #include "util/logging.h"
+#include "table/block.h"
 
 namespace leveldb {
 
@@ -277,6 +278,65 @@ static void SaveValue(void* arg, const Slice& ikey, const Slice& v) {
 static bool NewestFirst(FileMetaData* a, FileMetaData* b) {
   return a->number > b->number;
 }
+
+// *****************************************************
+
+// Build skip-list of global index by index_block
+void Version::SkipListGlobalIndexBuilder(Iterator* iiter, uint64_t file_number, 
+                                 uint64_t file_size, GITable* gitable_) {
+    
+    // TODO
+    
+    return;
+}
+
+
+// build global index
+void Version::GlobalIndexBuilder(void* arg, bool (*func)(void*, int, FileMetaData*)) {
+
+    // Search level-0 in order from newest to oldest.
+    GITable* gitable_ = nullptr;
+    for (uint32_t i = 0; i < files_[0].size(); i++) {
+        FileMetaData* f = files_[0][i];
+        // TODO: Read index block from table in level-0.
+        // Done.
+
+        VersionSet* vset = vset_;
+        Iterator* iiter;
+        vset->table_cache_->IndexBlockGet(f->number, f->file_size, iiter);
+            
+        // TODO: Add kv-pair from index block to skiplist gitable_.
+        // Done.
+        SkipListGlobalIndexBuilder(iiter, f->number, f->file_size, gitable_);
+    }
+    index_files_->push_back(gitable_);
+    gitable_ = nullptr;
+
+    // Search other levels.
+    for (int level = 1; level < config::kNumLevels; level++) {
+        
+        size_t num_files = files_[level].size();
+        if (num_files == 0) continue;
+
+        for (uint32_t i = 0; i < files_[level].size(); i++) {
+            FileMetaData* f = files_[level][i];
+            // TODO: Read index block from table in level-n.
+            // Done.
+            VersionSet* vset = vset_;
+            Iterator* iiter;
+            vset->table_cache_->IndexBlockGet(f->number, f->file_size, iiter);
+
+            // TODO: Add kv-pair from index block to skiplist gitable_.
+            // Done.
+            SkipListGlobalIndexBuilder(iiter, f->number, f->file_size, gitable_);
+        }
+        index_files_->push_back(gitable_);
+        gitable_ = nullptr;
+    }
+}
+
+
+// ****************************************************
 
 void Version::ForEachOverlapping(Slice user_key, Slice internal_key, void* arg,
                                  bool (*func)(void*, int, FileMetaData*)) {

@@ -211,6 +211,14 @@ Iterator* Table::NewIterator(const ReadOptions& options) const {
       &Table::BlockReader, const_cast<Table*>(this), options);
 }
 
+// **************************************************************************
+Iterator* Table::IndexGet() {
+  Iterator* iiter = rep_->index_block->NewIterator(rep_->options.comparator);
+  return iiter;
+}
+
+// **************************************************************************
+
 Status Table::InternalGet(const ReadOptions& options, const Slice& k, void* arg,
                           void (*handle_result)(void*, const Slice&,
                                                 const Slice&)) {
