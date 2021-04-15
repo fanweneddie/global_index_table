@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <iostream>
 
 #include "db/filename.h"
 #include "db/log_reader.h"
@@ -286,14 +287,20 @@ void Version::SkipListGlobalIndexBuilder(Iterator* iiter, uint64_t file_number,
                                  uint64_t file_size, GITable* gitable_) {
     
     // TODO
-    
+    iiter->SeekToFirst();
+    while (iiter->Valid()) {
+      std::cout << "key: " << iiter->key().ToString();
+      std::cout << "value: " << iiter->value().ToString();
+      iiter->Next();
+    }
+    std::cout << "key: " << iiter->key().ToString();
+    std::cout << "value: " << iiter->value().ToString();
     return;
 }
 
 
 // build global index
 void Version::GlobalIndexBuilder(void* arg, bool (*func)(void*, int, FileMetaData*)) {
-
     // Search level-0 in order from newest to oldest.
     GITable* gitable_ = nullptr;
     for (uint32_t i = 0; i < files_[0].size(); i++) {

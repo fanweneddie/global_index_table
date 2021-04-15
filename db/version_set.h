@@ -127,6 +127,7 @@ class Version {
   void GlobalIndexBuilder(void* arg, bool (*func)(void*, int, FileMetaData*));
   void SkipListGlobalIndexBuilder(Iterator* iiter, uint64_t file_number, 
                                  uint64_t file_size, GITable* gitable_);
+  bool global_index_exists_;
 
 // ***********************************************************
 
