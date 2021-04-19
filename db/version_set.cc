@@ -393,6 +393,7 @@ Status Version::Get(const ReadOptions& options, const LookupKey& k,
   stats->seek_file = nullptr;
   stats->seek_file_level = -1;
   if (!global_index_exists_) {
+    std::cout << "index build:" << std::endl;
     GlobalIndexBuilder();
     global_index_exists_ = true;
   }

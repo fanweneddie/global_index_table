@@ -1148,7 +1148,6 @@ Status DBImpl::Get(const ReadOptions& options, const Slice& key,
       // Done
     } else {
       s = current->Get(options, lkey, value, &stats);
-      std::cout << "file get" << std::endl;
       have_stat_update = true;
     }
     mutex_.Lock();
