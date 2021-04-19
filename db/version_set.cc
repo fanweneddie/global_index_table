@@ -300,7 +300,7 @@ void Version::SkipListGlobalIndexBuilder(Iterator* iiter, uint64_t file_number,
 
 
 // build global index
-void Version::GlobalIndexBuilder(void* arg, bool (*func)(void*, int, FileMetaData*)) {
+void Version::GlobalIndexBuilder() {
     // Search level-0 in order from newest to oldest.
     GITable* gitable_ = nullptr;
     for (uint32_t i = 0; i < files_[0].size(); i++) {
@@ -392,7 +392,10 @@ Status Version::Get(const ReadOptions& options, const LookupKey& k,
                     std::string* value, GetStats* stats) {
   stats->seek_file = nullptr;
   stats->seek_file_level = -1;
-
+  if (!global_index_exists_) {
+    GlobalIndexBuilder();
+    global_index_exists_ = true;
+  }
   struct State {
     Saver saver;
     GetStats* stats;

@@ -124,10 +124,10 @@ class Version {
         int operator()(const char* a, const char* b) const;
   };
   typedef SkipList<const char*, KeyComparator> GITable;
-  void GlobalIndexBuilder(void* arg, bool (*func)(void*, int, FileMetaData*));
+  void GlobalIndexBuilder();
   void SkipListGlobalIndexBuilder(Iterator* iiter, uint64_t file_number, 
                                  uint64_t file_size, GITable* gitable_);
-  bool global_index_exists_;
+  bool global_index_exists_ = false;
 
 // ***********************************************************
 
