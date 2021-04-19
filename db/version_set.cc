@@ -293,8 +293,6 @@ void Version::SkipListGlobalIndexBuilder(Iterator* iiter, uint64_t file_number,
       std::cout << "value: " << iiter->value().ToString() << std::endl;
       iiter->Next();
     }
-    std::cout << "key: " << iiter->key().ToString() << std::endl;
-    std::cout << "value: " << iiter->value().ToString() << std::endl;
     return;
 }
 
@@ -311,12 +309,7 @@ void Version::GlobalIndexBuilder() {
 
       VersionSet* vset = vset_;
       Iterator* iiter;
-      std::cout << "1!" << std::endl;
       vset->table_cache_->IndexBlockGet(f->number, f->file_size, &iiter);
-      if (!iiter->Valid()) {
-        std::cout << "参数错误" << std::endl;
-      }
-      std::cout << "2!" << std::endl;
             
       // TODO: Add kv-pair from index block to skiplist gitable_.
       // Done.
