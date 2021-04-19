@@ -289,12 +289,12 @@ void Version::SkipListGlobalIndexBuilder(Iterator* iiter, uint64_t file_number,
     // TODO
     iiter->SeekToFirst();
     while (iiter->Valid()) {
-      std::cout << "key: " << iiter->key().ToString();
-      std::cout << "value: " << iiter->value().ToString();
+      std::cout << "key: " << iiter->key().ToString() << std::endl; 
+      std::cout << "value: " << iiter->value().ToString() << std::endl;
       iiter->Next();
     }
-    std::cout << "key: " << iiter->key().ToString();
-    std::cout << "value: " << iiter->value().ToString();
+    std::cout << "key: " << iiter->key().ToString() << std::endl;
+    std::cout << "value: " << iiter->value().ToString() << std::endl;
     return;
 }
 

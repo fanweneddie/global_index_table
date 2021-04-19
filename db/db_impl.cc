@@ -11,6 +11,7 @@
 #include <set>
 #include <string>
 #include <vector>
+#include <iostream>
 
 #include "db/builder.h"
 #include "db/db_iter.h"
@@ -1140,11 +1141,14 @@ Status DBImpl::Get(const ReadOptions& options, const Slice& key,
     // First look in the memtable, then in the immutable memtable (if any).
     LookupKey lkey(key, snapshot);
     if (mem->Get(lkey, value, &s)) {
+      std::cout << "mem get" << std::endl;
       // Done
     } else if (imm != nullptr && imm->Get(lkey, value, &s)) {
+      std::cout << "imm get" << std::endl;
       // Done
     } else {
       s = current->Get(options, lkey, value, &stats);
+      std::cout << "file get" << std::endl;
       have_stat_update = true;
     }
     mutex_.Lock();
