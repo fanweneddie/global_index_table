@@ -303,18 +303,24 @@ void Version::SkipListGlobalIndexBuilder(Iterator* iiter, uint64_t file_number,
 void Version::GlobalIndexBuilder() {
     // Search level-0 in order from newest to oldest.
     GITable* gitable_ = nullptr;
+    std::cout << files_[0].size() << std::endl;
     for (uint32_t i = 0; i < files_[0].size(); i++) {
-        FileMetaData* f = files_[0][i];
-        // TODO: Read index block from table in level-0.
-        // Done.
+      FileMetaData* f = files_[0][i];
+      // TODO: Read index block from table in level-0.
+      // Done.
 
-        VersionSet* vset = vset_;
-        Iterator* iiter;
-        vset->table_cache_->IndexBlockGet(f->number, f->file_size, iiter);
+      VersionSet* vset = vset_;
+      Iterator* iiter;
+      std::cout << "1!" << std::endl;
+      vset->table_cache_->IndexBlockGet(f->number, f->file_size, &iiter);
+      if (!iiter->Valid()) {
+        std::cout << "参数错误" << std::endl;
+      }
+      std::cout << "2!" << std::endl;
             
-        // TODO: Add kv-pair from index block to skiplist gitable_.
-        // Done.
-        SkipListGlobalIndexBuilder(iiter, f->number, f->file_size, gitable_);
+      // TODO: Add kv-pair from index block to skiplist gitable_.
+      // Done.
+      SkipListGlobalIndexBuilder(iiter, f->number, f->file_size, gitable_);
     }
     index_files_->push_back(gitable_);
     gitable_ = nullptr;
@@ -331,7 +337,7 @@ void Version::GlobalIndexBuilder() {
             // Done.
             VersionSet* vset = vset_;
             Iterator* iiter;
-            vset->table_cache_->IndexBlockGet(f->number, f->file_size, iiter);
+            vset->table_cache_->IndexBlockGet(f->number, f->file_size, &iiter);
 
             // TODO: Add kv-pair from index block to skiplist gitable_.
             // Done.

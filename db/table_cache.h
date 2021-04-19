@@ -45,7 +45,7 @@ class TableCache {
 
     // **********************************************
     Status IndexBlockGet(uint64_t file_number, uint64_t file_size, 
-                         Iterator* iiter);
+                         Iterator** iiter);
 
     // **********************************************
 

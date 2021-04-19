@@ -114,7 +114,7 @@ Status TableCache::Get(const ReadOptions& options, uint64_t file_number,
 
 // **************************************************************************
 Status TableCache::IndexBlockGet(uint64_t file_number, uint64_t file_size, 
-                                 Iterator* iiter) {
+                                 Iterator** iiter) {
     Cache::Handle* handle = nullptr;
     Status s = FindTable(file_number, file_size, &handle);
     if (s.ok()) {
@@ -122,7 +122,7 @@ Status TableCache::IndexBlockGet(uint64_t file_number, uint64_t file_size,
         // TODO: Read index block from handle.
         // s = t->IndexGet();
         // Done.
-        iiter = t->IndexGet();
+        *iiter = t->IndexGet();
         cache_->Release(handle);
     }
     return s;
