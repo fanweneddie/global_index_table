@@ -7,8 +7,6 @@
 #include <algorithm>
 #include <cstdio>
 #include <iostream>
-#include <stack>
-#include <ctime>
 
 #include "db/filename.h"
 #include "db/log_reader.h"
@@ -283,108 +281,28 @@ static bool NewestFirst(FileMetaData* a, FileMetaData* b) {
 }
 
 // *****************************************************
-int Version::KeyComparator::operator()(SkipListItem a, SkipListItem b) const {
-  return comparator->Compare(a.key, b.key);
-}
 
 // Build skip-list of global index by index_block
 void Version::SkipListGlobalIndexBuilder(Iterator* iiter, uint64_t file_number, 
-                                 uint64_t file_size, GITable** gitable_, 
-                                 GITable::Iterator** next_level_iter) {
+                                 uint64_t file_size, GITable* gitable_) {
     
-  // TODO
-  // Format of an entry is concatenation of:
-  //  key               : Slice
-  //  value             : Slice
-  //  file_number       : char[file_num.size]
-  //  offset
-  //  TODO Bloom filter...
-  iiter->SeekToFirst();
-  const Comparator* ucmp = vset_->icmp_.user_comparator();
-  const KeyComparator kcmp = KeyComparator(ucmp);
-  GITable table_(kcmp, &arena_);
-  GITable::Node* next_level_node;
-  size_t item_size = sizeof(SkipListItem);
-  while (iiter->Valid()) {
-    if (*next_level_iter != nullptr) {
-      AddPtr(iiter->key(), next_level_iter, &next_level_node);
+    // TODO
+    iiter->SeekToFirst();
+    while (iiter->Valid()) {
+      std::cout << "key: " << iiter->key().ToString() << std::endl; 
+      std::cout << "value: " << iiter->value().ToString() << std::endl;
+      iiter->Next();
     }
-    SkipListItem* item_ptr = (SkipListItem*)arena_.Allocate(item_size);
-    char* key_data = (char*)arena_.Allocate(iiter->key().size());
-    memcpy(key_data, iiter->key().data(), iiter->key().size());
-    item_ptr->key = Slice(key_data, iiter->key().size());
-
-    char* value_data = (char*)arena_.Allocate(iiter->value().size());
-    memcpy(value_data, iiter->value().data(), iiter->value().size());
-    item_ptr->value = Slice(value_data, iiter->value().size());
-
-    item_ptr->file_number = file_number;
-    item_ptr->next_level_node = next_level_node;
-    
-    table_.Insert(*item_ptr);
-    iiter->Next();
-  }
-  *gitable_ = &table_;
-  return;
+    return;
 }
 
-
-void Version::AddPtr(Slice key, GITable::Iterator** next_level_ptr, GITable::Node** next_level_node) {
-  // TODO: 增加层间指针
-  const Comparator* ucmp = vset_->icmp_.user_comparator();
-  while ((*next_level_ptr)->Valid()) {
-    if (ucmp->Compare((*next_level_ptr)->key().key, key) >= 0) {
-      *next_level_node = (*next_level_ptr)->node_;
-      return;
-    }
-    (*next_level_ptr)->Next();
-  }
-  (*next_level_ptr)->SeekToLast();
-  *next_level_node = (*next_level_ptr)->node_;
-  return;
-}
 
 // build global index
 void Version::GlobalIndexBuilder() {
-    // Search other levels.
-    GITable* gitable_ = nullptr;
-    std::stack<GITable*> S;
-    GITable* next_table_ = nullptr;
-    GITable::Iterator* skiplist_iter_ptr = nullptr;
-    for (int level = config::kNumLevels - 1; level > 0; level--) {
-      size_t num_files = files_[level].size();
-      if (num_files == 0) continue;
-      // SStable
-      
-      for (uint32_t i = 0; i < files_[level].size(); i++) {
-        FileMetaData* f = files_[level][i];
-        // TODO: Read index block from table in level-n.
-        // Done.
-        VersionSet* vset = vset_;
-        Iterator* iiter;
-        vset->table_cache_->IndexBlockGet(f->number, f->file_size, &iiter);
-
-        // TODO: Add kv-pair from index block to skiplist gitable_.
-        // Done.
-        
-        SkipListGlobalIndexBuilder(iiter, f->number, f->file_size, &gitable_, &skiplist_iter_ptr);
-      }
-      next_table_ = gitable_;
-      GITable::Iterator skiplist_iter = GITable::Iterator(next_table_);
-      skiplist_iter_ptr = &skiplist_iter;
-      skiplist_iter_ptr->SeekToFirst();
-      S.push(gitable_);
-      gitable_ = nullptr;
-    }
-    while (!S.empty()) {
-      index_files_->push_back(S.top());
-      S.pop();
-    }
-
     // Search level-0 in order from newest to oldest.
+    GITable* gitable_ = nullptr;
+    std::cout << files_[0].size() << std::endl;
     for (uint32_t i = 0; i < files_[0].size(); i++) {
-      GITable::Iterator level1_iter = GITable::Iterator(next_table_);
-      GITable::Iterator* level1_iter_ptr = &level1_iter;
       FileMetaData* f = files_[0][i];
       // TODO: Read index block from table in level-0.
       // Done.
@@ -395,11 +313,32 @@ void Version::GlobalIndexBuilder() {
             
       // TODO: Add kv-pair from index block to skiplist gitable_.
       // Done.
-      SkipListGlobalIndexBuilder(iiter, f->number, f->file_size, &gitable_, &level1_iter_ptr);
-      index_files_level0.push_back(gitable_);
-      gitable_ = nullptr;
+      SkipListGlobalIndexBuilder(iiter, f->number, f->file_size, gitable_);
     }
+    index_files_->push_back(gitable_);
+    gitable_ = nullptr;
 
+    // Search other levels.
+    for (int level = 1; level < config::kNumLevels; level++) {
+        
+        size_t num_files = files_[level].size();
+        if (num_files == 0) continue;
+
+        for (uint32_t i = 0; i < files_[level].size(); i++) {
+            FileMetaData* f = files_[level][i];
+            // TODO: Read index block from table in level-n.
+            // Done.
+            VersionSet* vset = vset_;
+            Iterator* iiter;
+            vset->table_cache_->IndexBlockGet(f->number, f->file_size, &iiter);
+
+            // TODO: Add kv-pair from index block to skiplist gitable_.
+            // Done.
+            SkipListGlobalIndexBuilder(iiter, f->number, f->file_size, gitable_);
+        }
+        index_files_->push_back(gitable_);
+        gitable_ = nullptr;
+    }
 }
 
 
@@ -454,13 +393,7 @@ Status Version::Get(const ReadOptions& options, const LookupKey& k,
   stats->seek_file_level = -1;
   if (!global_index_exists_) {
     std::cout << "index build:" << std::endl;
-    clock_t start_time, end_time;
-    start_time = clock();
     GlobalIndexBuilder();
-    end_time = clock();
-    std::cout << "The run time is: "
-              << (double)(end_time - start_time) / CLOCKS_PER_SEC << "s"
-              << std::endl;
     global_index_exists_ = true;
   }
   struct State {
