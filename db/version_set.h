@@ -118,15 +118,40 @@ class Version {
 
 // ***********************************************************
 // TODO:
-  struct KeyComparator {
-        const InternalKeyComparator comparator;
-        explicit KeyComparator(const InternalKeyComparator& c) : comparator(c) {}
-        int operator()(const char* a, const char* b) const;
+  struct SkipListItem;
+  struct KeyComparator;
+  typedef SkipList<SkipListItem, KeyComparator> GITable;
+
+  struct SkipListItem {
+    Slice key;
+    Slice value;
+    uint64_t file_number;
+    void* next_level_node;
+    SkipListItem(int) {};
+    SkipListItem(Slice key, Slice value, uint64_t file_number, void* next_level_node) {
+      printf("%s ", key.data());
+      this->key = key;
+      printf("%s\n", this->key.data());
+      this->value = value;
+      this->file_number = file_number;
+      this->next_level_node = next_level_node;
+    }
   };
-  typedef SkipList<const char*, KeyComparator> GITable;
+  // TODO:
+  // Comparator
+  struct KeyComparator {
+    const Comparator* comparator;
+    explicit KeyComparator(const Comparator* c) { comparator = c; };
+    int operator()(SkipListItem a, SkipListItem b) const;
+  };
+  
+  Arena arena_;
+  
+  
   void GlobalIndexBuilder();
   void SkipListGlobalIndexBuilder(Iterator* iiter, uint64_t file_number, 
-                                 uint64_t file_size, GITable* gitable_);
+                                 uint64_t file_size, GITable** gitable_,
+                                 GITable::Iterator** next_level_ptr);
   bool global_index_exists_ = false;
 
 // ***********************************************************
@@ -180,12 +205,13 @@ class Version {
   double compaction_score_;
   int compaction_level_;
 
-    // ***************************************************************
-    // TODO:
-    // Done.
-    
-    std::vector<GITable*> index_files_[config::kNumLevels];
-    // **********************************************************
+  // ***************************************************************
+  // TODO:
+  // Done.
+  std::vector<GITable*> index_files_level0;
+  std::vector<GITable*> index_files_[config::kNumLevels - 1];
+  void AddPtr(Slice key, GITable::Iterator** next_level_ptr, GITable::Node** next_level_node);
+  // **********************************************************
 };
 
 class VersionSet {

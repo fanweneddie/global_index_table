@@ -40,13 +40,14 @@ class Arena;
 
 template <typename Key, class Comparator>
 class SkipList {
- private:
-  struct Node;
+ // private:
+  
 
  public:
   // Create a new SkipList object that will use "cmp" for comparing keys,
   // and will allocate memory using "*arena".  Objects allocated in the arena
   // must remain allocated for the lifetime of the skiplist object.
+  
   explicit SkipList(Comparator cmp, Arena* arena);
 
   SkipList(const SkipList&) = delete;
@@ -58,6 +59,7 @@ class SkipList {
 
   // Returns true iff an entry that compares equal to key is in the list.
   bool Contains(const Key& key) const;
+  struct Node;
 
   // Iteration over the contents of a skip list
   class Iterator {
@@ -91,10 +93,11 @@ class SkipList {
     // Position at the last entry in list.
     // Final state of iterator is Valid() iff list is not empty.
     void SeekToLast();
+    Node* node_;
 
    private:
     const SkipList* list_;
-    Node* node_;
+    
     // Intentionally copyable
   };
 
