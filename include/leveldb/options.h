@@ -48,6 +48,15 @@ struct LEVELDB_EXPORT Options {
   // If true, the database will be created if it is missing.
   bool create_if_missing = false;
 
+  // If false, the database will not do compaction background
+  bool enable_compaction = true;
+
+  // the thread count used for compaciton
+  bool thread_compaction = 1;
+
+  // If true, the database will use direct IO for accessing file
+  bool enable_direct_io = false;
+
   // If true, an error is raised if the database already exists.
   bool error_if_exists = false;
 

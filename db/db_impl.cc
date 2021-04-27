@@ -661,6 +661,7 @@ void DBImpl::RecordBackgroundError(const Status& s) {
 }
 
 void DBImpl::MaybeScheduleCompaction() {
+  if(!options_.enable_compaction) return;
   mutex_.AssertHeld();
   if (background_compaction_scheduled_) {
     // Already scheduled

@@ -203,7 +203,7 @@ class SpecialEnv : public EnvWrapper {
     return s;
   }
 
-  Status NewRandomAccessFile(const std::string& f, RandomAccessFile** r) {
+  Status NewRandomAccessFile(const std::string& f, RandomAccessFile** r, bool enable_direct_io = false) {
     class CountingFile : public RandomAccessFile {
      private:
       RandomAccessFile* target_;

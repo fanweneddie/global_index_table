@@ -242,7 +242,8 @@ class InMemoryEnv : public EnvWrapper {
   }
 
   Status NewRandomAccessFile(const std::string& fname,
-                             RandomAccessFile** result) override {
+                             RandomAccessFile** result,
+                             bool enable_direct_io = false) override {
     MutexLock lock(&mutex_);
     if (file_map_.find(fname) == file_map_.end()) {
       *result = nullptr;

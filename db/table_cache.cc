@@ -44,15 +44,16 @@ Status TableCache::FindTable(uint64_t file_number, uint64_t file_size,
   char buf[sizeof(file_number)];
   EncodeFixed64(buf, file_number);
   Slice key(buf, sizeof(buf));
-  *handle = cache_->Lookup(key);
+  // *handle = cache_->Lookup(key);
+  *handle = options_.enable_direct_io ? nullptr : cache_->Lookup(key);
   if (*handle == nullptr) {
     std::string fname = TableFileName(dbname_, file_number);
     RandomAccessFile* file = nullptr;
     Table* table = nullptr;
-    s = env_->NewRandomAccessFile(fname, &file);
+    s = env_->NewRandomAccessFile(fname, &file, options_.enable_direct_io);
     if (!s.ok()) {
       std::string old_fname = SSTTableFileName(dbname_, file_number);
-      if (env_->NewRandomAccessFile(old_fname, &file).ok()) {
+      if (env_->NewRandomAccessFile(old_fname, &file, options_.enable_direct_io).ok()) {
         s = Status::OK();
       }
     }
