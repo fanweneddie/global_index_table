@@ -459,7 +459,7 @@ Status Version::Get(const ReadOptions& options, const LookupKey& k,
     GlobalIndexBuilder();
     end_time = clock();
     std::cout << "The run time is: "
-              << (double)(end_time - start_time) / CLOCKS_PER_SEC << "s"
+              << (double)(end_time - start_time) * 1000 / CLOCKS_PER_SEC << "ms"
               << std::endl;
     global_index_exists_ = true;
   }

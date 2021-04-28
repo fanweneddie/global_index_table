@@ -72,8 +72,7 @@ class LEVELDB_EXPORT Env {
   //
   // The returned file will only be accessed by one thread at a time.
   virtual Status NewSequentialFile(const std::string& fname,
-                                   SequentialFile** result,
-                                   bool enable_direct_io = false) = 0;
+                                   SequentialFile** result) = 0;
 
   // Create an object supporting random-access reads from the file with the
   // specified name.  On success, stores a pointer to the new file in
@@ -84,7 +83,8 @@ class LEVELDB_EXPORT Env {
   //
   // The returned file may be concurrently accessed by multiple threads.
   virtual Status NewRandomAccessFile(const std::string& fname,
-                                     RandomAccessFile** result) = 0;
+                                     RandomAccessFile** result,
+                                     bool enable_direct_io = false) = 0;
 
   // Create an object that writes to a new file with the specified
   // name.  Deletes any existing file with the same name and creates a
