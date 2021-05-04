@@ -140,8 +140,8 @@ class Version {
   // TODO:
   // Comparator
   struct KeyComparator {
-    const Comparator* comparator;
-    explicit KeyComparator(const Comparator* c) { comparator = c; };
+    const InternalKeyComparator* comparator;
+    explicit KeyComparator(const InternalKeyComparator* c) { comparator = c; };
     int operator()(SkipListItem a, SkipListItem b) const;
   };
   
@@ -149,9 +149,10 @@ class Version {
   
   
   void GlobalIndexBuilder();
-  void SkipListGlobalIndexBuilder(Iterator* iiter, uint64_t file_number, 
-                                 uint64_t file_size, GITable** gitable_,
-                                 GITable::Iterator** next_level_ptr);
+  void GetFromGlobalIndex(Slice user_key, Slice internal_key, std::string* value);
+  void SkipListGlobalIndexBuilder(Iterator* iiter, uint64_t file_number,
+                                  uint64_t file_size, GITable** gitable_,
+                                  GITable::Iterator** next_level_ptr);
   bool global_index_exists_ = false;
 
 // ***********************************************************
