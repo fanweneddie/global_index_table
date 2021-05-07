@@ -76,6 +76,7 @@ class LEVELDB_EXPORT Table {
 
   // *****************************************************************
   Iterator* IndexGet();
+  Iterator* GetByIndex(const ReadOptions& options, Slice& value);
   // *****************************************************************
 
   void ReadMeta(const Footer& footer);

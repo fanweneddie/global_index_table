@@ -59,7 +59,11 @@ class SkipList {
 
   // Returns true iff an entry that compares equal to key is in the list.
   bool Contains(const Key& key) const;
+  
   struct Node;
+
+  Node* GetLongestPathNode(const Key& key1, const Key& key2,
+                           int* lowest_level) const;
 
   // Iteration over the contents of a skip list
   class Iterator {
@@ -85,6 +89,8 @@ class SkipList {
 
     // Advance to the first entry with a key >= target
     void Seek(const Key& target);
+
+    void SeekWithNode(const Key& target, Node* start_node_, int start_level_);
 
     // Position at the first entry in list.
     // Final state of iterator is Valid() iff list is not empty.
@@ -121,6 +127,8 @@ class SkipList {
   // If prev is non-null, fills prev[level] with pointer to previous
   // node at "level" for every level in [0..max_height_-1].
   Node* FindGreaterOrEqual(const Key& key, Node** prev) const;
+
+  Node* FindGreaterOrEqualWithNode(const Key& key, Node* start_node_, int start_level_) const;
 
   // Return the latest node with a key < key.
   // Return head_ if there is no such node.
@@ -228,6 +236,15 @@ inline void SkipList<Key, Comparator>::Iterator::Seek(const Key& target) {
   node_ = list_->FindGreaterOrEqual(target, nullptr);
 }
 
+// *********************************************************
+template <typename Key, class Comparator>
+inline void SkipList<Key, Comparator>::Iterator::SeekWithNode(const Key& target,
+                                                              Node* start_node_,
+                                                              int start_level) {
+  node_ = list_->FindGreaterOrEqualWithNode(target, start_node_, start_level);
+}
+// *********************************************************
+
 template <typename Key, class Comparator>
 inline void SkipList<Key, Comparator>::Iterator::SeekToFirst() {
   node_ = list_->head_->Next(0);
@@ -259,6 +276,50 @@ bool SkipList<Key, Comparator>::KeyIsAfterNode(const Key& key, Node* n) const {
   // null n is considered infinite
   return (n != nullptr) && (compare_(n->key, key) < 0);
 }
+
+// **************************************************************
+
+template <typename Key, class Comparator>
+typename SkipList<Key, Comparator>::Node*
+SkipList<Key, Comparator>::GetLongestPathNode(const Key& key1, const Key& key2,
+                                              int* lowest_level) const {
+  Node* prev1[kMaxHeight];
+  Node* prev2[kMaxHeight];
+  FindGreaterOrEqual(key1, prev1);
+  FindGreaterOrEqual(key2, prev2);
+  Node* x = nullptr;
+
+  for (int level = GetMaxHeight() - 1; level > 0; level--) {
+    if(prev1[level] != prev2[level]) return x;
+    x = prev1[level];
+    *lowest_level = level;
+  }
+}
+
+template <typename Key, class Comparator>
+typename SkipList<Key, Comparator>::Node*
+SkipList<Key, Comparator>::FindGreaterOrEqualWithNode(const Key& key,
+                                                      Node* start_node_,
+                                                      int start_level_) const {
+  Node* x = start_node_;
+  int level = start_level_ - 1;
+  while (true) {
+    Node* next = x->Next(level);
+    if (KeyIsAfterNode(key, next)) {
+      // Keep searching in this list
+      x = next;
+    } else {
+      if (level == 0) {
+        return next;
+      } else {
+        // Switch to next list
+        level--;
+      }
+    }
+  }
+}
+
+// **************************************************************
 
 template <typename Key, class Comparator>
 typename SkipList<Key, Comparator>::Node*

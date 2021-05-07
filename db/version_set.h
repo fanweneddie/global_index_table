@@ -126,7 +126,9 @@ class Version {
     Slice key;
     Slice value;
     uint64_t file_number;
-    void* next_level_node;
+    uint64_t file_size;
+    int skiplist_level = -1;
+    void* next_level_node = nullptr;
     SkipListItem(int) {};
     SkipListItem(Slice key, Slice value, uint64_t file_number, void* next_level_node) {
       printf("%s ", key.data());
@@ -146,16 +148,24 @@ class Version {
   };
   
   Arena arena_;
-  
-  
-  void GlobalIndexBuilder();
-  void GetFromGlobalIndex(Slice user_key, Slice internal_key, std::string* value);
-  void SkipListGlobalIndexBuilder(Iterator* iiter, uint64_t file_number,
-                                  uint64_t file_size, GITable** gitable_,
+
+  void SearchGITable(const ReadOptions& options, Slice internal_key,
+                     bool _islevel0, GITable* gitable_,
+                     GITable::Node** next_level_, int* next_skiplist_level_num_,
+                     void* arg,
+                     void (*handle_result)(void*, const Slice&, const Slice&));
+  void GlobalIndexBuilder(const ReadOptions& options);
+  bool GetFromGlobalIndex(const ReadOptions& options, Slice user_key,
+                          Slice internal_key, void* arg,
+                          void (*handle_result)(void*, const Slice&,
+                                                const Slice&));
+  void SkipListGlobalIndexBuilder(const ReadOptions& options, Iterator* iiter,
+                                  uint64_t file_number, uint64_t file_size,
+                                  GITable** gitable_, GITable* next_gitable_,
                                   GITable::Iterator** next_level_ptr);
   bool global_index_exists_ = false;
 
-// ***********************************************************
+  // ***********************************************************
 
  private:
   friend class Compaction;
@@ -210,8 +220,10 @@ class Version {
   // TODO:
   // Done.
   std::vector<GITable*> index_files_level0;
-  std::vector<GITable*> index_files_[config::kNumLevels - 1];
-  void AddPtr(Slice key, GITable::Iterator** next_level_ptr, GITable::Node** next_level_node);
+  std::vector<GITable*> index_files_;
+  void AddPtr(Slice key, GITable* next_gitable_, int* skiplist_level,
+              GITable::Iterator** next_level_ptr,
+              GITable::Node** next_level_node, GITable::Node** suit_node);
   // **********************************************************
 };
 

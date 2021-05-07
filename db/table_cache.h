@@ -47,22 +47,20 @@ class TableCache {
     Status IndexBlockGet(uint64_t file_number, uint64_t file_size, 
                          Iterator** iiter);
 
+    Status GetByIndexBlock(const ReadOptions& options, uint64_t file_number,
+                           uint64_t file_size, Iterator** iiter, Slice& value);
     // **********************************************
 
+    // Evict any entry for the specified file number
+    void Evict(uint64_t file_number);
 
+   private:
+    Status FindTable(uint64_t file_number, uint64_t file_size, Cache::Handle**);
 
-
-
-  // Evict any entry for the specified file number
-  void Evict(uint64_t file_number);
-
- private:
-  Status FindTable(uint64_t file_number, uint64_t file_size, Cache::Handle**);
-
-  Env* const env_;
-  const std::string dbname_;
-  const Options& options_;
-  Cache* cache_;
+    Env* const env_;
+    const std::string dbname_;
+    const Options& options_;
+    Cache* cache_;
 };
 
 }  // namespace leveldb

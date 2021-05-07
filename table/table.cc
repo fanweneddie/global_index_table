@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
+#include <iostream>
 #include "leveldb/table.h"
 
 #include "leveldb/cache.h"
@@ -217,6 +218,11 @@ Iterator* Table::IndexGet() {
   return iiter;
 }
 
+Iterator* Table::GetByIndex(const ReadOptions& options, Slice& value) {
+  Iterator* iiter = BlockReader(this, options, value);
+  return iiter;
+}
+
 // **************************************************************************
 
 Status Table::InternalGet(const ReadOptions& options, const Slice& k, void* arg,
@@ -236,6 +242,7 @@ Status Table::InternalGet(const ReadOptions& options, const Slice& k, void* arg,
       Iterator* block_iter = BlockReader(this, options, iiter->value());
       block_iter->Seek(k);
       if (block_iter->Valid()) {
+        std::cout << "true found: " << block_iter->key().ToString() << std::endl;
         (*handle_result)(arg, block_iter->key(), block_iter->value());
       }
       s = block_iter->status();

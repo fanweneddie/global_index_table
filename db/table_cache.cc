@@ -114,21 +114,33 @@ Status TableCache::Get(const ReadOptions& options, uint64_t file_number,
 
 
 // **************************************************************************
-Status TableCache::IndexBlockGet(uint64_t file_number, uint64_t file_size, 
+Status TableCache::IndexBlockGet(uint64_t file_number, uint64_t file_size,
                                  Iterator** iiter) {
-    Cache::Handle* handle = nullptr;
-    Status s = FindTable(file_number, file_size, &handle);
-    if (s.ok()) {
-        Table* t = reinterpret_cast<TableAndFile*>(cache_->Value(handle))->table;
-        // TODO: Read index block from handle.
-        // s = t->IndexGet();
-        // Done.
-        *iiter = t->IndexGet();
-        cache_->Release(handle);
-    }
-    return s;
+  Cache::Handle* handle = nullptr;
+  Status s = FindTable(file_number, file_size, &handle);
+  if (s.ok()) {
+    Table* t = reinterpret_cast<TableAndFile*>(cache_->Value(handle))->table;
+    // TODO: Read index block from handle.
+    // s = t->IndexGet();
+    // Done.
+    *iiter = t->IndexGet();
+    cache_->Release(handle);
+  }
+  return s;
 }
 
+Status TableCache::GetByIndexBlock(const ReadOptions& options,
+                                   uint64_t file_number, uint64_t file_size,
+                                   Iterator** iiter, Slice& value) {
+  Cache::Handle* handle = nullptr;
+  Status s = FindTable(file_number, file_size, &handle);
+  if (s.ok()) {
+    Table* t = reinterpret_cast<TableAndFile*>(cache_->Value(handle))->table;
+    *iiter = t->GetByIndex(options, value);
+    cache_->Release(handle);
+  }
+  return s;
+}
 // **************************************************************************
 
 
