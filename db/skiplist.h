@@ -62,8 +62,8 @@ class SkipList {
   
   struct Node;
 
-  Node* GetLongestPathNode(const Key& key1, const Key& key2,
-                           int* lowest_level) const;
+  void GetLongestPathNode(const Key& key1, const Key& key2, int* lowest_level,
+                          Node** suit_node) const;
 
   // Iteration over the contents of a skip list
   class Iterator {
@@ -280,18 +280,19 @@ bool SkipList<Key, Comparator>::KeyIsAfterNode(const Key& key, Node* n) const {
 // **************************************************************
 
 template <typename Key, class Comparator>
-typename SkipList<Key, Comparator>::Node*
-SkipList<Key, Comparator>::GetLongestPathNode(const Key& key1, const Key& key2,
-                                              int* lowest_level) const {
+void SkipList<Key, Comparator>::GetLongestPathNode(const Key& key1,
+                                                   const Key& key2,
+                                                   int* lowest_level,
+                                                   Node** suit_node) const {
   Node* prev1[kMaxHeight];
   Node* prev2[kMaxHeight];
   FindGreaterOrEqual(key1, prev1);
   FindGreaterOrEqual(key2, prev2);
-  Node* x = nullptr;
+  *suit_node = nullptr;
 
   for (int level = GetMaxHeight() - 1; level > 0; level--) {
-    if(prev1[level] != prev2[level]) return x;
-    x = prev1[level];
+    if(prev1[level] != prev2[level]) return;
+    *suit_node = prev1[level];
     *lowest_level = level;
   }
 }

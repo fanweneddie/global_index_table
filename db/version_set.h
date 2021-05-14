@@ -162,6 +162,7 @@ class Version {
   void SkipListGlobalIndexBuilder(const ReadOptions& options, Iterator* iiter,
                                   uint64_t file_number, uint64_t file_size,
                                   GITable** gitable_, GITable* next_gitable_,
+                                  bool is_last,
                                   GITable::Iterator** next_level_ptr);
   bool global_index_exists_ = false;
 
