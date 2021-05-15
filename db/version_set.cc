@@ -731,7 +731,8 @@ Status Version::Get(const ReadOptions& options, const LookupKey& k,
     std::cout << "The searching time is: "
               << (double)running_time * 1000 / CLOCKS_PER_SEC << "ms"
               << std::endl;
-    global_index_exists_ = true;
+    op_count = 0;
+    running_time = 0;
   }
   // **************************************************************
 
