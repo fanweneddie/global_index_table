@@ -627,7 +627,8 @@ void Version::ForEachOverlapping(Slice user_key, Slice internal_key, void* arg,
     }
   }
 }
-
+int op_count = 0;
+clock_t running_time = 0;
 Status Version::Get(const ReadOptions& options, const LookupKey& k,
                     std::string* value, GetStats* stats) {
   stats->seek_file = nullptr;
@@ -701,9 +702,9 @@ Status Version::Get(const ReadOptions& options, const LookupKey& k,
   state.saver.user_key = k.user_key();
   state.saver.value = value;
   // ***********************************************************
+  clock_t start_time, end_time;
   if (!global_index_exists_) {
     std::cout << "index build:" << std::endl;
-    clock_t start_time, end_time;
     start_time = clock();
     GlobalIndexBuilder(options);
     end_time = clock();
@@ -718,13 +719,23 @@ Status Version::Get(const ReadOptions& options, const LookupKey& k,
   my_saver.ucmp = vset_->icmp_.user_comparator();
   my_saver.user_key = k.user_key();
   my_saver.value = &my_value;
-  
+
+  start_time = clock();
   GetFromGlobalIndex(options, k.user_key(), k.internal_key(), &my_saver, SaveValue);
-  ForEachOverlapping(state.saver.user_key, state.ikey, &state, &State::Match);
+  
+  // ForEachOverlapping(state.saver.user_key, state.ikey, &state, &State::Match);
+  end_time = clock();
+  op_count++;
+  running_time += (end_time - start_time);
+  if (op_count >= 100000) {
+    std::cout << "The searching time is: "
+              << (double)running_time * 1000 / CLOCKS_PER_SEC << "ms"
+              << std::endl;
+    global_index_exists_ = true;
+  }
   // **************************************************************
 
-  
-  if (state.found && my_value != *value) {
+    if (state.found && my_value != *value) {
     //std::cout << "false!" << std::endl;
   }
 
