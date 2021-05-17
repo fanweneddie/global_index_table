@@ -242,6 +242,7 @@ Status Table::InternalGet(const ReadOptions& options, const Slice& k, void* arg,
       Iterator* block_iter = BlockReader(this, options, iiter->value());
       block_iter->Seek(k);
       if (block_iter->Valid()) {
+        // std::cout << "leveldb found key: " << block_iter->key().ToString() << std::endl;
         (*handle_result)(arg, block_iter->key(), block_iter->value());
       }
       s = block_iter->status();
