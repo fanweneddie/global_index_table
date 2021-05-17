@@ -283,6 +283,10 @@ static bool NewestFirst(FileMetaData* a, FileMetaData* b) {
 }
 
 // *****************************************************
+static bool NewestLast(FileMetaData* a, FileMetaData* b) {
+  return a->number < b->number;
+}
+
 int Version::KeyComparator::operator()(SkipListItem a, SkipListItem b) const {
   return comparator->Compare(a.key, b.key);
 }
@@ -457,9 +461,8 @@ void Version::GlobalIndexBuilder(const ReadOptions& options) {
     tmp.push_back(f);
   }
   if (!tmp.empty()) {
-    std::sort(tmp.begin(), tmp.end(), NewestFirst);
+    std::sort(tmp.begin(), tmp.end(), NewestLast);
     for (uint32_t i = 0; i < tmp.size(); i++) {
-      skiplist_iter_ptr->SeekToFirst();
       FileMetaData* f = tmp[i];
 
       VersionSet* vset = vset_;
@@ -470,13 +473,20 @@ void Version::GlobalIndexBuilder(const ReadOptions& options) {
       SkipListGlobalIndexBuilder(options, iiter, f->number, f->file_size,
                                 &gitable_, next_gitable_, true,
                                 &skiplist_iter_ptr);
-      index_files_level0.push_back(gitable_);
+      S.push(gitable_);
+      next_gitable_ = gitable_;
+      skiplist_iter_ptr = new GITable::Iterator(gitable_);
+      (*skiplist_iter_ptr).SeekToFirst();
+    }
+    while (!S.empty()) {
+      index_files_level0.push_back(S.top());
+      S.pop();
     }
   }
 }
 
 void Version::SearchGITable(const ReadOptions& options, Slice internal_key,
-                            bool _islevel0, GITable* gitable_,
+                            GITable* gitable_,
                             GITable::Node** next_level_,
                             int* next_skiplist_level_num_, void* arg,
                             void (*handle_result)(void*, const Slice&,
@@ -492,7 +502,7 @@ void Version::SearchGITable(const ReadOptions& options, Slice internal_key,
   item_ptr->key = Slice(internal_key);
 
   index_iter = new GITable::Iterator(gitable_);
-  if (*next_level_ != nullptr && !_islevel0) {
+  if (*next_level_ != nullptr) {
     index_iter->SeekWithNode(*item_ptr, *next_level_, *next_skiplist_level_num_);
   } else {
     index_iter->Seek(*item_ptr);
@@ -505,6 +515,7 @@ void Version::SearchGITable(const ReadOptions& options, Slice internal_key,
     Iterator* block_iter;
     // 汇总level0的信息，确定下一层的指针位置。
     next_level_node_ = (GITable::Node*)found_item.next_level_node;
+    /*
     if (_islevel0) {
       if ((next_level_node_ != nullptr && *next_level_ == nullptr) ||
             (found_item.skiplist_level < *next_skiplist_level_num_)) {
@@ -515,6 +526,9 @@ void Version::SearchGITable(const ReadOptions& options, Slice internal_key,
       *next_level_ = next_level_node_;
       *next_skiplist_level_num_ = found_item.skiplist_level;
     }
+    */
+    *next_level_ = next_level_node_;
+    *next_skiplist_level_num_ = found_item.skiplist_level;
     
     vset->table_cache_->GetByIndexBlock(options, found_item.file_number,
                                         found_item.file_size, &block_iter,
@@ -546,7 +560,7 @@ bool Version::GetFromGlobalIndex(const ReadOptions& options, Slice user_key,
 
   // Search level0
   for (uint32_t i = 0; i < index_files_level0.size(); i++) {
-    SearchGITable(options, internal_key, true, index_files_level0[i], &next_level_,
+    SearchGITable(options, internal_key, index_files_level0[i], &next_level_,
                   &next_skiplist_level_num_, saver, handle_result);
     if (saver->state == kFound || saver->state == kDeleted) return true;
   }
@@ -554,7 +568,7 @@ bool Version::GetFromGlobalIndex(const ReadOptions& options, Slice user_key,
   // Search other levels
   
   for (uint32_t i = 0; i < index_files_.size(); i++) {
-    SearchGITable(options, internal_key, false, index_files_[i], &next_level_,
+    SearchGITable(options, internal_key, index_files_[i], &next_level_,
                   &next_skiplist_level_num_, saver, handle_result);
     if (saver->state == kFound || saver->state == kDeleted) return true;
   }
@@ -701,7 +715,7 @@ Status Version::Get(const ReadOptions& options, const LookupKey& k,
   my_saver.value = &my_value;
 
   start_time = clock();
-  GetFromGlobalIndex(options, k.user_key(), k.internal_key(), &my_saver, SaveValue);
+  // GetFromGlobalIndex(options, k.user_key(), k.internal_key(), &my_saver, SaveValue);
   
   ForEachOverlapping(state.saver.user_key, state.ikey, &state, &State::Match);
   end_time = clock();
@@ -717,7 +731,7 @@ Status Version::Get(const ReadOptions& options, const LookupKey& k,
   // **************************************************************
 
   if (state.found && my_value != *value) {
-    std::cout << "false!" << std::endl;
+    // std::cout << "false!" << std::endl;
   }
 
   return state.found ? state.s : Status::NotFound(Slice());

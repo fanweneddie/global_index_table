@@ -150,7 +150,7 @@ class Version {
   Arena arena_;
 
   void SearchGITable(const ReadOptions& options, Slice internal_key,
-                     bool _islevel0, GITable* gitable_,
+                     GITable* gitable_,
                      GITable::Node** next_level_, int* next_skiplist_level_num_,
                      void* arg,
                      void (*handle_result)(void*, const Slice&, const Slice&));
