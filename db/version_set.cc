@@ -715,14 +715,14 @@ Status Version::Get(const ReadOptions& options, const LookupKey& k,
   my_saver.value = &my_value;
 
   start_time = clock();
-  // GetFromGlobalIndex(options, k.user_key(), k.internal_key(), &my_saver, SaveValue);
+  GetFromGlobalIndex(options, k.user_key(), k.internal_key(), &my_saver, SaveValue);
   
-  ForEachOverlapping(state.saver.user_key, state.ikey, &state, &State::Match);
+  // ForEachOverlapping(state.saver.user_key, state.ikey, &state, &State::Match);
   end_time = clock();
   op_count++;
   running_time += (end_time - start_time);
-  if (op_count >= 1000000) {
-    std::cout << "The searching time of 1000000 ops is: "
+  if (op_count >= 100000) {
+    std::cout << "My searching time of 100000 ops(direct_io) is: "
               << (double)running_time * 1000 / CLOCKS_PER_SEC << "ms"
               << std::endl;
     op_count = 0;
