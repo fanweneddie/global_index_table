@@ -114,7 +114,7 @@ Options SanitizeOptions(const std::string& dbname,
     }
   }
   if (result.block_cache == nullptr) {
-    result.block_cache = NewLRUCache(8 << 20);
+    result.block_cache = NewLRUCache(64 << 20);
   }
   return result;
 }
@@ -139,6 +139,8 @@ DBImpl::DBImpl(const Options& raw_options, const std::string& dbname)
       background_work_finished_signal_(&mutex_),
       mem_(nullptr),
       imm_(nullptr),
+      // globalIndex
+      global_index(new GlobalIndex),
       has_imm_(false),
       logfile_(nullptr),
       logfile_number_(0),
@@ -456,7 +458,8 @@ Status DBImpl::RecoverLogFile(uint64_t log_number, bool last_log,
     if (mem->ApproximateMemoryUsage() > options_.write_buffer_size) {
       compactions++;
       *save_manifest = true;
-      status = WriteLevel0Table(mem, edit, nullptr);
+      FileMetaData f;
+      status = WriteLevel0Table(mem, edit, nullptr, &f);
       mem->Unref();
       mem = nullptr;
       if (!status.ok()) {
@@ -495,7 +498,8 @@ Status DBImpl::RecoverLogFile(uint64_t log_number, bool last_log,
     // mem did not get reused; compact it.
     if (status.ok()) {
       *save_manifest = true;
-      status = WriteLevel0Table(mem, edit, nullptr);
+      FileMetaData f;
+      status = WriteLevel0Table(mem, edit, nullptr, &f);
     }
     mem->Unref();
   }
@@ -504,45 +508,45 @@ Status DBImpl::RecoverLogFile(uint64_t log_number, bool last_log,
 }
 
 Status DBImpl::WriteLevel0Table(MemTable* mem, VersionEdit* edit,
-                                Version* base) {
+                                Version* base, FileMetaData* meta) {
   mutex_.AssertHeld();
   const uint64_t start_micros = env_->NowMicros();
-  FileMetaData meta;
-  meta.number = versions_->NewFileNumber();
-  pending_outputs_.insert(meta.number);
+  // FileMetaData meta;
+  meta->number = versions_->NewFileNumber();
+  pending_outputs_.insert(meta->number);
   Iterator* iter = mem->NewIterator();
   Log(options_.info_log, "Level-0 table #%llu: started",
-      (unsigned long long)meta.number);
+      (unsigned long long)meta->number);
 
   Status s;
   {
     mutex_.Unlock();
-    s = BuildTable(dbname_, env_, options_, table_cache_, iter, &meta);
+    s = BuildTable(dbname_, env_, options_, table_cache_, iter, meta);
     mutex_.Lock();
   }
 
   Log(options_.info_log, "Level-0 table #%llu: %lld bytes %s",
-      (unsigned long long)meta.number, (unsigned long long)meta.file_size,
+      (unsigned long long)meta->number, (unsigned long long)meta->file_size,
       s.ToString().c_str());
   delete iter;
-  pending_outputs_.erase(meta.number);
+  pending_outputs_.erase(meta->number);
 
   // Note that if file_size is zero, the file has been deleted and
   // should not be added to the manifest.
   int level = 0;
-  if (s.ok() && meta.file_size > 0) {
-    const Slice min_user_key = meta.smallest.user_key();
-    const Slice max_user_key = meta.largest.user_key();
+  if (s.ok() && meta->file_size > 0) {
+    const Slice min_user_key = meta->smallest.user_key();
+    const Slice max_user_key = meta->largest.user_key();
     if (base != nullptr) {
       level = base->PickLevelForMemTableOutput(min_user_key, max_user_key);
     }
-    edit->AddFile(level, meta.number, meta.file_size, meta.smallest,
-                  meta.largest);
+    edit->AddFile(level, meta->number, meta->file_size, meta->smallest,
+                  meta->largest);
   }
 
   CompactionStats stats;
   stats.micros = env_->NowMicros() - start_micros;
-  stats.bytes_written = meta.file_size;
+  stats.bytes_written = meta->file_size;
   stats_[level].Add(stats);
   return s;
 }
@@ -554,8 +558,9 @@ void DBImpl::CompactMemTable() {
   // Save the contents of the memtable as a new Table
   VersionEdit edit;
   Version* base = versions_->current();
+  FileMetaData f;
   base->Ref();
-  Status s = WriteLevel0Table(imm_, &edit, base);
+  Status s = WriteLevel0Table(imm_, &edit, base, &f);
   base->Unref();
 
   if (s.ok() && shutting_down_.load(std::memory_order_acquire)) {
@@ -566,6 +571,7 @@ void DBImpl::CompactMemTable() {
   if (s.ok()) {
     edit.SetPrevLogNumber(0);
     edit.SetLogNumber(logfile_number_);  // Earlier logs no longer needed
+    global_index->global_index_exists_ = false;
     s = versions_->LogAndApply(&edit, &mutex_);
   }
 
@@ -738,6 +744,7 @@ void DBImpl::BackgroundCompaction() {
     c->edit()->RemoveFile(c->level(), f->number);
     c->edit()->AddFile(c->level() + 1, f->number, f->file_size, f->smallest,
                        f->largest);
+    global_index->global_index_exists_ = false;
     status = versions_->LogAndApply(c->edit(), &mutex_);
     if (!status.ok()) {
       RecordBackgroundError(status);
@@ -888,6 +895,7 @@ Status DBImpl::InstallCompactionResults(CompactionState* compact) {
     compact->compaction->edit()->AddFile(level + 1, out.number, out.file_size,
                                          out.smallest, out.largest);
   }
+  global_index->global_index_exists_ = false;
   return versions_->LogAndApply(compact->compaction->edit(), &mutex_);
 }
 
@@ -1146,7 +1154,7 @@ Status DBImpl::Get(const ReadOptions& options, const Slice& key,
     } else if (imm != nullptr && imm->Get(lkey, value, &s)) {
       // Done
     } else {
-      s = current->Get(options, lkey, value, &stats);
+      s = current->Get(options, lkey, value, &stats, global_index);
       have_stat_update = true;
     }
     mutex_.Lock();
@@ -1509,6 +1517,7 @@ Status DB::Open(const Options& options, const std::string& dbname, DB** dbptr) {
   if (s.ok() && save_manifest) {
     edit.SetPrevLogNumber(0);  // No older logs needed after recovery.
     edit.SetLogNumber(impl->logfile_number_);
+    impl->global_index->global_index_exists_ = false;
     s = impl->versions_->LogAndApply(&edit, &impl->mutex_);
   }
   if (s.ok()) {

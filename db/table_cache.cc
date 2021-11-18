@@ -38,25 +38,31 @@ TableCache::TableCache(const std::string& dbname, const Options& options,
 
 TableCache::~TableCache() { delete cache_; }
 
+// find the sstable of the file number, and store this info into handle
 Status TableCache::FindTable(uint64_t file_number, uint64_t file_size,
                              Cache::Handle** handle) {
   Status s;
   char buf[sizeof(file_number)];
   EncodeFixed64(buf, file_number);
   Slice key(buf, sizeof(buf));
+  // try to get the handle of that file from table cache.
   // *handle = cache_->Lookup(key);
   *handle = options_.enable_direct_io ? nullptr : cache_->Lookup(key);
+  // we can't find that file in table cache.
   if (*handle == nullptr) {
     std::string fname = TableFileName(dbname_, file_number);
     RandomAccessFile* file = nullptr;
     Table* table = nullptr;
+    // try to access that file from disk
     s = env_->NewRandomAccessFile(fname, &file, options_.enable_direct_io);
+    // what does it mean???
     if (!s.ok()) {
       std::string old_fname = SSTTableFileName(dbname_, file_number);
       if (env_->NewRandomAccessFile(old_fname, &file, options_.enable_direct_io).ok()) {
         s = Status::OK();
       }
     }
+    // open the sstable from that file
     if (s.ok()) {
       s = Table::Open(options_, file, file_size, &table);
     }
@@ -114,6 +120,8 @@ Status TableCache::Get(const ReadOptions& options, uint64_t file_number,
 
 
 // **************************************************************************
+// Get the iterator of the index block,
+// which is stored in iiter 
 Status TableCache::IndexBlockGet(uint64_t file_number, uint64_t file_size,
                                  Iterator** iiter) {
   Cache::Handle* handle = nullptr;
@@ -128,6 +136,7 @@ Status TableCache::IndexBlockGet(uint64_t file_number, uint64_t file_size,
   }
   return s;
 }
+
 
 Status TableCache::GetByIndexBlock(const ReadOptions& options,
                                    uint64_t file_number, uint64_t file_size,

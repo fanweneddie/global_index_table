@@ -49,7 +49,7 @@ struct LEVELDB_EXPORT Options {
   bool create_if_missing = false;
 
   // If false, the database will not do compaction background
-  bool enable_compaction = true;
+  bool enable_compaction = false;
 
   // the thread count used for compaciton
   bool thread_compaction = 1;
@@ -93,7 +93,7 @@ struct LEVELDB_EXPORT Options {
   // Number of open files that can be used by the DB.  You may need to
   // increase this if your database has a large working set (budget
   // one open file per 2MB of working set).
-  int max_open_files = 1000;
+  int max_open_files = 40000;
 
   // Control over blocks (user data is stored in a set of blocks, and
   // a block is the unit of reading from disk).

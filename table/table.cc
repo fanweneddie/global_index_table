@@ -36,6 +36,7 @@ struct Table::Rep {
   Block* index_block;
 };
 
+// Open the table from the file
 Status Table::Open(const Options& options, RandomAccessFile* file,
                    uint64_t size, Table** table) {
   *table = nullptr;
@@ -223,6 +224,8 @@ Iterator* Table::GetByIndex(const ReadOptions& options, Slice& value) {
   return iiter;
 }
 
+void IndexSeek(Iterator** iiter, const Slice& k) { (*iiter)->Seek(k); }
+
 // **************************************************************************
 
 Status Table::InternalGet(const ReadOptions& options, const Slice& k, void* arg,
@@ -230,7 +233,7 @@ Status Table::InternalGet(const ReadOptions& options, const Slice& k, void* arg,
                                                 const Slice&)) {
   Status s;
   Iterator* iiter = rep_->index_block->NewIterator(rep_->options.comparator);
-  iiter->Seek(k);
+  IndexSeek(&iiter, k);
   if (iiter->Valid()) {
     Slice handle_value = iiter->value();
     FilterBlockReader* filter = rep_->filter;

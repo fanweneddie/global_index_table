@@ -44,6 +44,7 @@ class TableCache {
 
 
     // **********************************************
+    // Get the index block from a table cache into iiter.
     Status IndexBlockGet(uint64_t file_number, uint64_t file_size, 
                          Iterator** iiter);
 

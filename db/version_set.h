@@ -59,6 +59,73 @@ bool SomeFileOverlapsRange(const InternalKeyComparator& icmp,
                            const Slice* smallest_user_key,
                            const Slice* largest_user_key);
 
+class GlobalIndex {
+  public:
+    struct SkipListItem;
+    struct KeyComparator;
+    typedef SkipList<SkipListItem, KeyComparator> GITable;
+
+    struct SkipListItem {
+      Slice key;
+      Slice value;
+      uint64_t file_number;
+      uint64_t file_size;
+      void* next_level_node = nullptr;
+      SkipListItem(Slice key) {
+        this->key = key;
+      };
+      SkipListItem(int num){ };
+      void SetNextNode(void* next_level_node) {
+        this->next_level_node = next_level_node;
+      };
+      SkipListItem(Slice key, Slice value, uint64_t file_number,
+                   void* next_level_node) {
+        this->key = key;
+        this->value = value;
+        this->file_number = file_number;
+        this->next_level_node = next_level_node;
+      }
+    };
+    // TODO:
+    // Comparator
+    struct KeyComparator {
+      const InternalKeyComparator* comparator;
+      explicit KeyComparator(const InternalKeyComparator* c) { comparator = c; };
+      int operator()(SkipListItem a, SkipListItem b) const;
+    };
+    
+    Arena arena_;
+    void SearchGITable(const ReadOptions& options, Slice internal_key,
+                       GITable* gitable_, GITable::Node** next_level_,
+                       void* arg,
+                       void (*handle_result)(void*, const Slice&,
+                                             const Slice&));
+    void GlobalIndexBuilder(
+        const ReadOptions& options,
+        std::vector<FileMetaData*> files_[config::kNumLevels]);
+    bool GetFromGlobalIndex(const ReadOptions& options, Slice user_key,
+                            Slice internal_key, void* arg,
+                            void (*handle_result)(void*, const Slice&,
+                                                  const Slice&));
+    void SkipListGlobalIndexBuilder(const ReadOptions& options, Iterator* iiter,
+                                    uint64_t file_number, uint64_t file_size,
+                                    GITable** gitable_,
+                                    GITable::Node** next_level_node,
+                                    bool is_last, bool is_first,
+                                    GITable::Iterator** next_level_ptr);
+    bool global_index_exists_ = false;
+
+    void DeleteFile(int level, uint64_t file_number, const ReadOptions& options,
+                    InternalKey smallest, InternalKey largest);
+    VersionSet* vset_;
+
+   private:
+    std::vector<GITable*> index_files_level0;
+    std::vector<GITable*> index_files_;
+    void AddPtr(Slice key, GITable::Iterator** next_level_ptr,
+                GITable::Node** suit_node);
+};
+
 class Version {
  public:
   // Lookup the value for key.  If found, store it in *val and
@@ -75,7 +142,7 @@ class Version {
   void AddIterators(const ReadOptions&, std::vector<Iterator*>* iters);
 
   Status Get(const ReadOptions&, const LookupKey& key, std::string* val,
-             GetStats* stats);
+             GetStats* stats, leveldb::GlobalIndex* global_index_);
 
   // Adds "stats" into the current state.  Returns true if a new
   // compaction may need to be triggered, false otherwise.
@@ -118,53 +185,8 @@ class Version {
 
 // ***********************************************************
 // TODO:
-  struct SkipListItem;
-  struct KeyComparator;
-  typedef SkipList<SkipListItem, KeyComparator> GITable;
-
-  struct SkipListItem {
-    Slice key;
-    Slice value;
-    uint64_t file_number;
-    uint64_t file_size;
-    int skiplist_level = -1;
-    void* next_level_node = nullptr;
-    SkipListItem(int) {};
-    SkipListItem(Slice key, Slice value, uint64_t file_number, void* next_level_node) {
-      printf("%s ", key.data());
-      this->key = key;
-      printf("%s\n", this->key.data());
-      this->value = value;
-      this->file_number = file_number;
-      this->next_level_node = next_level_node;
-    }
-  };
-  // TODO:
-  // Comparator
-  struct KeyComparator {
-    const InternalKeyComparator* comparator;
-    explicit KeyComparator(const InternalKeyComparator* c) { comparator = c; };
-    int operator()(SkipListItem a, SkipListItem b) const;
-  };
-  
-  Arena arena_;
-
-  void SearchGITable(const ReadOptions& options, Slice internal_key,
-                     GITable* gitable_,
-                     GITable::Node** next_level_, int* next_skiplist_level_num_,
-                     void* arg,
-                     void (*handle_result)(void*, const Slice&, const Slice&));
-  void GlobalIndexBuilder(const ReadOptions& options);
-  bool GetFromGlobalIndex(const ReadOptions& options, Slice user_key,
-                          Slice internal_key, void* arg,
-                          void (*handle_result)(void*, const Slice&,
-                                                const Slice&));
-  void SkipListGlobalIndexBuilder(const ReadOptions& options, Iterator* iiter,
-                                  uint64_t file_number, uint64_t file_size,
-                                  GITable** gitable_, GITable* next_gitable_,
-                                  bool is_last,
-                                  GITable::Iterator** next_level_ptr);
-  bool global_index_exists_ = false;
+  // class GlobalIndex;
+  // GlobalIndex* global_index_;
 
   // ***********************************************************
 
@@ -216,15 +238,10 @@ class Version {
   // are initialized by Finalize().
   double compaction_score_;
   int compaction_level_;
-
+  friend class GlobalIndex;
   // ***************************************************************
   // TODO:
   // Done.
-  std::vector<GITable*> index_files_level0;
-  std::vector<GITable*> index_files_;
-  void AddPtr(Slice key, GITable* next_gitable_, int* skiplist_level,
-              GITable::Iterator** next_level_ptr,
-              GITable::Node** next_level_node, GITable::Node** suit_node);
   // **********************************************************
 };
 
@@ -377,6 +394,7 @@ class VersionSet {
   // Per-level key at which the next compaction at that level should start.
   // Either an empty string, or a valid InternalKey.
   std::string compact_pointer_[config::kNumLevels];
+  friend class GlobalIndex;
 };
 
 // A Compaction encapsulates information about a compaction.

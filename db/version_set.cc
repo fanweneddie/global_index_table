@@ -287,15 +287,16 @@ static bool NewestLast(FileMetaData* a, FileMetaData* b) {
   return a->number < b->number;
 }
 
-int Version::KeyComparator::operator()(SkipListItem a, SkipListItem b) const {
+int GlobalIndex::KeyComparator::operator()(SkipListItem a, SkipListItem b) const {
   return comparator->Compare(a.key, b.key);
 }
 
 // Build skip-list of global index by index_block
-void Version::SkipListGlobalIndexBuilder(const ReadOptions& options,
+void GlobalIndex::SkipListGlobalIndexBuilder(const ReadOptions& options,
                                          Iterator* iiter, uint64_t file_number,
                                          uint64_t file_size, GITable** gitable_,
-                                         GITable* next_gitable_, bool is_last,
+                                         GITable::Node** next_level_node, bool is_last,
+                                         bool is_first,
                                          GITable::Iterator** next_level_iter) {
   // TODO
   // Format of an entry is concatenation of:
@@ -307,27 +308,11 @@ void Version::SkipListGlobalIndexBuilder(const ReadOptions& options,
   iiter->SeekToFirst();
   if (!iiter->Valid()) return;
   
-  GITable::Node* next_level_node = nullptr;
-  GITable::Node* found_node = nullptr;
-  
   size_t item_size = sizeof(SkipListItem);
 
   SkipListItem* item_ptr = nullptr;
-  int skiplist_level = -1;
-  while (iiter->Valid()) {
-    if (item_ptr != nullptr) {
-      if (*next_level_iter != nullptr) {
-        AddPtr(item_ptr->key, next_gitable_, &skiplist_level, next_level_iter,
-               &found_node, &next_level_node);
-      } else {
-        next_level_node = nullptr;
-        skiplist_level = -1;
-      }
-      item_ptr->skiplist_level = skiplist_level;
-      item_ptr->next_level_node = next_level_node;
-      (*gitable_)->Insert(*item_ptr);
-    }
 
+  if (iiter->Valid()) {
     item_ptr = (SkipListItem*)arena_.Allocate(item_size);
     char* key_data = (char*)arena_.Allocate(iiter->key().size());
     memcpy(key_data, iiter->key().data(), iiter->key().size());
@@ -340,110 +325,191 @@ void Version::SkipListGlobalIndexBuilder(const ReadOptions& options,
     item_ptr->file_number = file_number;
     item_ptr->file_size = file_size;
 
+    if (*next_level_iter != nullptr) {
+      if (is_first) {
+        (*next_level_iter)->SeekToHead();
+        *next_level_node = (*next_level_iter)->node_;
+        (*next_level_iter)->Next();
+      }
+    } else {
+      *next_level_node = nullptr;
+    }
+    item_ptr->next_level_node = *next_level_node;
+  }
+  iiter->Next();
+  while (iiter->Valid()) {
+    (*gitable_)->Insert(*item_ptr);
+
+    if (*next_level_iter != nullptr) {
+      AddPtr(item_ptr->key, next_level_iter, next_level_node);
+      // std::cout << "insert: key:" << item_ptr->key.ToString()
+      //           << " ptr: " << (*next_level_node)->key.key.ToString()
+      //           << std::endl;
+    } else {
+      *next_level_node = nullptr;
+    }
+    
+    item_ptr = (SkipListItem*)arena_.Allocate(item_size);
+    char* key_data = (char*)arena_.Allocate(iiter->key().size());
+    memcpy(key_data, iiter->key().data(), iiter->key().size());
+    item_ptr->key = Slice(key_data, iiter->key().size());
+
+    char* value_data = (char*)arena_.Allocate(iiter->value().size());
+    memcpy(value_data, iiter->value().data(), iiter->value().size());
+    item_ptr->value = Slice(value_data, iiter->value().size());
+
+    item_ptr->file_number = file_number;
+    item_ptr->file_size = file_size;
+
+    item_ptr->next_level_node = *next_level_node;
     iiter->Next();
   }
   // find the max key 
   if(!is_last) {
     VersionSet* vset = vset_;
     Iterator* block_iter;
-    vset->table_cache_->GetByIndexBlock(options, item_ptr->file_number, item_ptr->file_size, &block_iter, item_ptr->value);
+    vset->table_cache_->GetByIndexBlock(options, item_ptr->file_number,
+                                        item_ptr->file_size, &block_iter,
+                                        item_ptr->value);
     block_iter->SeekToLast();
 
     char* key_data = (char*)arena_.Allocate(block_iter->key().size());
     memcpy(key_data, block_iter->key().data(), block_iter->key().size());
     item_ptr->key = Slice(key_data, block_iter->key().size());
     delete block_iter;
+    // std::cout << " not last " << item_ptr->key.ToString() << std::endl;
   }
-  if (*next_level_iter != nullptr) {
-    AddPtr(item_ptr->key, next_gitable_, &skiplist_level, next_level_iter,
-           &found_node, &next_level_node);
-  } else {
-    next_level_node = nullptr;
-    skiplist_level = -1;
-  }
-  item_ptr->skiplist_level = skiplist_level;
-  item_ptr->next_level_node = next_level_node;
   (*gitable_)->Insert(*item_ptr);
-  
-  // TODO:
+
+  if (*next_level_iter != nullptr) {
+    AddPtr(item_ptr->key, next_level_iter, next_level_node);
+    // std::cout << "insert: key:" << item_ptr->key.ToString()
+    //           << " ptr: " << (*next_level_node)->key.key.ToString()
+    //           << std::endl;
+  } else {
+    *next_level_node = nullptr;
+  }
   return;
 }
 
-void Version::AddPtr(Slice key, GITable* next_gitable_, int* skiplist_level,
-                     GITable::Iterator** next_level_ptr,
-                     GITable::Node** found_node, GITable::Node** suit_node) {
-  // TODO: 增加层间指针
-  GITable::Node* last_node = nullptr;
-  
-  if (*found_node != nullptr) {
-    last_node = *found_node;
+void GlobalIndex::DeleteFile(int level, uint64_t file_number,
+                             const ReadOptions& options,
+                             InternalKey smallest, InternalKey largest) {
+  const Comparator* ucmp = vset_->icmp_.user_comparator();
+  GITable::Iterator* index_iter = nullptr;
+  GITable::Iterator* gitable_iter, *next_gitable_iter = nullptr;
+  GITable* next_gitable, *gitable;
+  GITable::Node* next_level_node = nullptr;
+  SkipListItem smallest_item = SkipListItem(smallest.Encode());
+  if (level != 0) {
+    GITable* list = index_files_[level];
+    index_iter = new GITable::Iterator(list);
+    index_iter->Seek(smallest_item);
+    while(index_iter->Valid() && ucmp->Compare(index_iter->key().key, largest.Encode()) <= 0){
+      const SkipListItem* del = &index_iter->key();
+      index_iter->Next();
+      list->Delete(*del);
+    }
+  } else {
+    int i = 0;
+    for (std::vector<GITable*>::iterator iiter = index_files_level0.begin();
+          iiter != index_files_level0.end(); iiter++, i++) {
+      gitable = index_files_level0[i];
+      index_iter = new GITable::Iterator(gitable);
+      index_iter->SeekToFirst();
+      if (index_iter->Valid() && index_iter->key().file_number == file_number) {
+        // TODO:处理层间指针
+        if (i == 0) {
+          // DONE
+        } else {
+          gitable_iter = new GITable::Iterator(index_files_level0[i - 1]);
+          if (i == index_files_level0.size() - 1) {
+            // last SST in level 0.
+            next_gitable = index_files_[0];
+          } else {
+            // other.
+            next_gitable = index_files_level0[i + 1];
+          }
+          next_gitable_iter = new GITable::Iterator(next_gitable);
+          gitable_iter->SeekToFirst();
+          while (gitable_iter->Valid()) {
+            AddPtr(gitable_iter->key().key, &next_gitable_iter, &next_level_node);
+            // (gitable_iter->key()).SetNextNode(next_level_node);
+
+            gitable_iter->Next();
+          }
+        }
+        
+        iiter = index_files_level0.erase(iiter);
+        break;
+      }
+    }
   }
+  delete index_iter;
+  return;
+}
+
+void GlobalIndex::AddPtr(Slice key, GITable::Iterator** next_level_ptr,
+                         GITable::Node** suit_node) {
+  // TODO: 增加层间指针
   const Comparator* ucmp = vset_->icmp_.user_comparator();
   while ((*next_level_ptr)->Valid()) {
-    if (ucmp->Compare((*next_level_ptr)->key().key, key) >= 0) {
-      *found_node = (*next_level_ptr)->node_;
+    // std::cout << key.ToString() << std::endl;
+    // std::cout << (*next_level_ptr)->key().key.ToString() << std::endl;
+    if (ucmp->Compare((*next_level_ptr)->key().key, key) > 0) {
+      (*next_level_ptr)->Prev();
+      if ((*next_level_ptr)->node_ == nullptr) {
+        (*next_level_ptr)->SeekToHead();
+      }
+      *suit_node = (*next_level_ptr)->node_;
+      (*next_level_ptr)->Next();
       break;
     }
     (*next_level_ptr)->Next();
   }
-  
-  if (!(*next_level_ptr)->Valid()) {
-    (*next_level_ptr)->SeekToLast();
-    *found_node = (*next_level_ptr)->node_;
-  }
-
-  if (last_node == *found_node) return;
-
-  if (last_node == nullptr) {
-    SkipListItem* item_ptr =
-        (SkipListItem*)arena_.Allocate(sizeof(SkipListItem));
-    const char* s = (const char*)arena_.Allocate(8);
-    s = "00000000";
-    item_ptr->key = Slice(s);
-    next_gitable_->GetLongestPathNode(*item_ptr, (*found_node)->key,
-                                      skiplist_level, suit_node);
-  } else {
-    next_gitable_->GetLongestPathNode(last_node->key, (*found_node)->key,
-                                      skiplist_level, suit_node);
-  }
-
   return;
 }
 
 // build global index
-void Version::GlobalIndexBuilder(const ReadOptions& options) {
+void GlobalIndex::GlobalIndexBuilder(
+    const ReadOptions& options,
+    std::vector<FileMetaData*> files_[config::kNumLevels]) {
   // Search other levels.
   const InternalKeyComparator& icmp = vset_->icmp_;
   const KeyComparator kcmp = KeyComparator(&icmp);
+  // init a new global index table
   GITable* gitable_ = new GITable(kcmp, &arena_);
-  GITable* next_gitable_ = nullptr;
+  // the node at next level
+  GITable::Node* next_level_node = nullptr;
+  // the stack to store each level of global index table
   std::stack<GITable*> S;
   GITable::Iterator* skiplist_iter_ptr = nullptr;
-  bool is_last;
+  // is_last denotes that the file is the last one on that level
+  // is_first denotes that the file is the first one on that level
+  bool is_last, is_first;
+  // iterate from highest level to level 1
   for (int level = config::kNumLevels - 1; level > 0; level--) {
     size_t num_files = files_[level].size();
     if (num_files == 0) continue;
     
-    // SStable
-    
+    // for each SStable
     for (uint32_t i = 0; i < files_[level].size(); i++) {
-      if (i == files_[level].size() - 1) 
-        is_last = true;
-      else
-        is_last = false;
+      is_last = (i == files_[level].size() - 1) ? true : false;
+      is_first = (i == 0) ? true : false;
+      // get the meta data of that file
       FileMetaData* f = files_[level][i];
       VersionSet* vset = vset_;
       Iterator* iiter;
+      // get the index block of this sstable into iiter
       vset->table_cache_->IndexBlockGet(f->number, f->file_size, &iiter);
-
+      // insert this index block into the skiplist global index table
       SkipListGlobalIndexBuilder(options, iiter, f->number, f->file_size,
-                                  &gitable_, next_gitable_, is_last,
-                                  &skiplist_iter_ptr);
+                                  &gitable_, &next_level_node, is_last,
+                                  is_first, &skiplist_iter_ptr);
     }
-    next_gitable_ = gitable_;
+
     skiplist_iter_ptr = new GITable::Iterator(gitable_);
     (*skiplist_iter_ptr).SeekToFirst();
-    
     S.push(gitable_);
     gitable_ = new GITable(kcmp, &arena_);
   }
@@ -462,7 +528,9 @@ void Version::GlobalIndexBuilder(const ReadOptions& options) {
   }
   if (!tmp.empty()) {
     std::sort(tmp.begin(), tmp.end(), NewestLast);
+    // std::cout << "level: 0" << std::endl;
     for (uint32_t i = 0; i < tmp.size(); i++) {
+      
       FileMetaData* f = tmp[i];
 
       VersionSet* vset = vset_;
@@ -471,10 +539,9 @@ void Version::GlobalIndexBuilder(const ReadOptions& options) {
             
       gitable_ = new GITable(kcmp, &arena_);
       SkipListGlobalIndexBuilder(options, iiter, f->number, f->file_size,
-                                &gitable_, next_gitable_, true,
-                                &skiplist_iter_ptr);
+                                 &gitable_, &next_level_node, true, true,
+                                 &skiplist_iter_ptr);
       S.push(gitable_);
-      next_gitable_ = gitable_;
       skiplist_iter_ptr = new GITable::Iterator(gitable_);
       (*skiplist_iter_ptr).SeekToFirst();
     }
@@ -485,12 +552,12 @@ void Version::GlobalIndexBuilder(const ReadOptions& options) {
   }
 }
 
-void Version::SearchGITable(const ReadOptions& options, Slice internal_key,
-                            GITable* gitable_,
-                            GITable::Node** next_level_,
-                            int* next_skiplist_level_num_, void* arg,
-                            void (*handle_result)(void*, const Slice&,
-                                                  const Slice&)) {
+// search the key in a skiplist
+void GlobalIndex::SearchGITable(const ReadOptions& options, Slice internal_key,
+                                GITable* gitable_, GITable::Node** next_level_,
+                                void* arg,
+                                void (*handle_result)(void*, const Slice&,
+                                                      const Slice&)) {
   Status s;
   
   GITable::Iterator* index_iter = nullptr;
@@ -502,12 +569,14 @@ void Version::SearchGITable(const ReadOptions& options, Slice internal_key,
   item_ptr->key = Slice(internal_key);
 
   index_iter = new GITable::Iterator(gitable_);
-  if (*next_level_ != nullptr) {
-    index_iter->SeekWithNode(*item_ptr, *next_level_, *next_skiplist_level_num_);
-  } else {
-    index_iter->Seek(*item_ptr);
-  }
-  
+  // if (*next_level_ != nullptr) {
+  //   // std::cout << "seek with node" << std::endl;
+  //   index_iter->SeekWithNode(*item_ptr, *next_level_);
+  // } else {
+  //   // std::cout << "seek without node" << std::endl;
+  //   index_iter->Seek(*item_ptr);
+  // }
+  index_iter->Seek(*item_ptr);
   if(index_iter->Valid()) {
     // Found.
     SkipListItem found_item = index_iter->key();
@@ -528,14 +597,13 @@ void Version::SearchGITable(const ReadOptions& options, Slice internal_key,
     }
     */
     *next_level_ = next_level_node_;
-    *next_skiplist_level_num_ = found_item.skiplist_level;
-    
     vset->table_cache_->GetByIndexBlock(options, found_item.file_number,
                                         found_item.file_size, &block_iter,
                                         found_item.value);
     block_iter->Seek(internal_key);
     if (block_iter->Valid()) {
-      // std::cout << "my found key: " << block_iter->key().ToString() << std::endl;
+      // std::cout << "my found key: " << block_iter->key().ToString()
+      //           << std::endl;
       (*handle_result)(arg, block_iter->key(), block_iter->value());
     }
     s = block_iter->status();
@@ -545,7 +613,8 @@ void Version::SearchGITable(const ReadOptions& options, Slice internal_key,
   delete index_iter;
 }
 
-bool Version::GetFromGlobalIndex(const ReadOptions& options, Slice user_key,
+// get the key-value from global index table
+bool GlobalIndex::GetFromGlobalIndex(const ReadOptions& options, Slice user_key,
                                  Slice internal_key, void* arg,
                                  void (*handle_result)(void*, const Slice&,
                                                        const Slice&)) {
@@ -553,25 +622,27 @@ bool Version::GetFromGlobalIndex(const ReadOptions& options, Slice user_key,
   assert(global_index_exists_);
   Saver* saver = reinterpret_cast<Saver*>(arg);
   GITable::Node* next_level_ = nullptr;
-  int next_skiplist_level_num_ = -1;
   // std::cout << "key to found: " << internal_key.ToString() << std::endl;
 
   if (index_files_level0.size() == 0 && index_files_.size() == 0) return false;
 
   // Search level0
   for (uint32_t i = 0; i < index_files_level0.size(); i++) {
+    // std::cout << "level: 0, file: " << i << std::endl;
     SearchGITable(options, internal_key, index_files_level0[i], &next_level_,
-                  &next_skiplist_level_num_, saver, handle_result);
+                  saver, handle_result);
     if (saver->state == kFound || saver->state == kDeleted) return true;
   }
 
   // Search other levels
   
   for (uint32_t i = 0; i < index_files_.size(); i++) {
+    // std::cout << "level: " << i + 1 << std::endl;
     SearchGITable(options, internal_key, index_files_[i], &next_level_,
-                  &next_skiplist_level_num_, saver, handle_result);
+                  saver, handle_result);
     if (saver->state == kFound || saver->state == kDeleted) return true;
   }
+  // std::cout << "not found!" << std::endl;
   return false;
 }
 
@@ -594,6 +665,7 @@ void Version::ForEachOverlapping(Slice user_key, Slice internal_key, void* arg,
   if (!tmp.empty()) {
     std::sort(tmp.begin(), tmp.end(), NewestFirst);
     for (uint32_t i = 0; i < tmp.size(); i++) {
+      // std::cout << "level 0, file: " << i << std::endl;
       if (!(*func)(arg, 0, tmp[i])) {
         return;
       }
@@ -602,6 +674,7 @@ void Version::ForEachOverlapping(Slice user_key, Slice internal_key, void* arg,
 
   // Search other levels.
   for (int level = 1; level < config::kNumLevels; level++) {
+    // std::cout << "level: " << level << std::endl;
     size_t num_files = files_[level].size();
     if (num_files == 0) continue;
 
@@ -621,8 +694,9 @@ void Version::ForEachOverlapping(Slice user_key, Slice internal_key, void* arg,
 }
 int op_count = 0;
 clock_t running_time = 0;
+// get the value from lsm tree according to key
 Status Version::Get(const ReadOptions& options, const LookupKey& k,
-                    std::string* value, GetStats* stats) {
+                    std::string* value, GetStats* stats, leveldb::GlobalIndex* global_index_) {
   stats->seek_file = nullptr;
   stats->seek_file_level = -1;
   
@@ -679,6 +753,7 @@ Status Version::Get(const ReadOptions& options, const LookupKey& k,
     }
   };
 
+  /*
   State state;
   state.found = false;
   state.stats = stats;
@@ -693,20 +768,26 @@ Status Version::Get(const ReadOptions& options, const LookupKey& k,
   state.saver.ucmp = vset_->icmp_.user_comparator();
   state.saver.user_key = k.user_key();
   state.saver.value = value;
+  */
   // ***********************************************************
   clock_t start_time, end_time;
-  
-  if (!global_index_exists_) {
+
+  if (global_index_ == nullptr) {
+    return Status::NotFound(Slice());
+  }
+  if (!global_index_->global_index_exists_) {
     std::cout << "index build:" << std::endl;
     start_time = clock();
-    GlobalIndexBuilder(options);
+    global_index_->vset_ = vset_;
+    global_index_->GlobalIndexBuilder(options, files_);
     end_time = clock();
     std::cout << "The run time is: "
               << (double)(end_time - start_time) * 1000 / CLOCKS_PER_SEC << "ms"
               << std::endl;
-    global_index_exists_ = true;
+    global_index_->global_index_exists_ = true;
   }
-  
+
+  // define a state to denote whether the key is found in lsm tree
   Saver my_saver;
   std::string my_value;
   my_saver.state = kNotFound;
@@ -715,14 +796,13 @@ Status Version::Get(const ReadOptions& options, const LookupKey& k,
   my_saver.value = &my_value;
 
   start_time = clock();
-  GetFromGlobalIndex(options, k.user_key(), k.internal_key(), &my_saver, SaveValue);
-  
-  // ForEachOverlapping(state.saver.user_key, state.ikey, &state, &State::Match);
+  //ForEachOverlapping(state.saver.user_key, state.ikey, &state, &State::Match);
+  global_index_->GetFromGlobalIndex(options, k.user_key(), k.internal_key(), &my_saver, SaveValue);
   end_time = clock();
   op_count++;
   running_time += (end_time - start_time);
   if (op_count >= 100000) {
-    std::cout << "My searching time of 100000 ops(direct_io) is: "
+    std::cout << "My searching time of 100000 ops is: "
               << (double)running_time * 1000 / CLOCKS_PER_SEC << "ms"
               << std::endl;
     op_count = 0;
@@ -730,11 +810,13 @@ Status Version::Get(const ReadOptions& options, const LookupKey& k,
   }
   // **************************************************************
 
-  if (state.found && my_value != *value) {
-    // std::cout << "false!" << std::endl;
-  }
-
-  return state.found ? state.s : Status::NotFound(Slice());
+  // if (state.found && my_value != *value) {
+  //   std::cout << "false!" << std::endl;
+  // }
+  return (my_saver.state == kFound || my_saver.state == kDeleted)
+             ? state.s
+             : Status::NotFound(Slice());
+  // return state.found ? state.s : Status::NotFound(Slice());
 }
 
 bool Version::UpdateStats(const GetStats& stats) {

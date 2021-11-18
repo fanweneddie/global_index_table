@@ -17,6 +17,7 @@
 #include "leveldb/env.h"
 #include "port/port.h"
 #include "port/thread_annotations.h"
+#include "version_edit.h"
 
 namespace leveldb {
 
@@ -25,6 +26,7 @@ class TableCache;
 class Version;
 class VersionEdit;
 class VersionSet;
+class GlobalIndex;
 
 class DBImpl : public DB {
  public:
@@ -127,7 +129,8 @@ class DBImpl : public DB {
                         VersionEdit* edit, SequenceNumber* max_sequence)
       EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
-  Status WriteLevel0Table(MemTable* mem, VersionEdit* edit, Version* base)
+  Status WriteLevel0Table(MemTable* mem, VersionEdit* edit, Version* base,
+                          leveldb::FileMetaData* file)
       EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
   Status MakeRoomForWrite(bool force /* compact even if there is room? */)
@@ -203,6 +206,9 @@ class DBImpl : public DB {
   Status bg_error_ GUARDED_BY(mutex_);
 
   CompactionStats stats_[config::kNumLevels] GUARDED_BY(mutex_);
+
+  // GlobalIndex
+  GlobalIndex* global_index;
 };
 
 // Sanitize db options.  The caller should delete result.info_log if
