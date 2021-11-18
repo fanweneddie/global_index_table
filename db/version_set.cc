@@ -311,8 +311,20 @@ void GlobalIndex::SkipListGlobalIndexBuilder(const ReadOptions& options, Iterato
 
   SkipListItem* item_ptr = nullptr;
 
-  // get *next_level_node
-  if (*next_level_iter != nullptr) {
+  if (iiter->Valid()) {
+    item_ptr = (SkipListItem*)arena_.Allocate(item_size);
+    char* key_data = (char*)arena_.Allocate(iiter->key().size());
+    memcpy(key_data, iiter->key().data(), iiter->key().size());
+    item_ptr->key = Slice(key_data, iiter->key().size());
+
+    char* value_data = (char*)arena_.Allocate(iiter->value().size());
+    memcpy(value_data, iiter->value().data(), iiter->value().size());
+    item_ptr->value = Slice(value_data, iiter->value().size());
+
+    item_ptr->file_number = file_number;
+    item_ptr->file_size = file_size;
+
+    if (*next_level_iter != nullptr) {
       if (is_first) {
         (*next_level_iter)->SeekToHead();
         *next_level_node = (*next_level_iter)->node_;
@@ -321,10 +333,21 @@ void GlobalIndex::SkipListGlobalIndexBuilder(const ReadOptions& options, Iterato
     } else {
       *next_level_node = nullptr;
     }
-
-  // iterate over all entries in index block
+    item_ptr->next_level_node = *next_level_node;
+  }
+  iiter->Next();
   while (iiter->Valid()) {
-    // allocate an item, and set its key and value from current iiters
+    (*gitable_)->Insert(*item_ptr);
+
+    if (*next_level_iter != nullptr) {
+      AddPtr(item_ptr->key, next_level_iter, next_level_node);
+      // std::cout << "insert: key:" << item_ptr->key.ToString()
+      //           << " ptr: " << (*next_level_node)->key.key.ToString()
+      //           << std::endl;
+    } else {
+      *next_level_node = nullptr;
+    }
+    
     item_ptr = (SkipListItem*)arena_.Allocate(item_size);
     char* key_data = (char*)arena_.Allocate(iiter->key().size());
     memcpy(key_data, iiter->key().data(), iiter->key().size());
@@ -338,14 +361,6 @@ void GlobalIndex::SkipListGlobalIndexBuilder(const ReadOptions& options, Iterato
     item_ptr->file_size = file_size;
 
     item_ptr->next_level_node = *next_level_node;
-
-    (*gitable_)->Insert(*item_ptr);
-    if (*next_level_iter != nullptr) {
-      AddPtr(item_ptr->key, next_level_iter, next_level_node);
-      // std::cout << "insert: key:" << item_ptr->key.ToString()
-      //           << " ptr: " << (*next_level_node)->key.key.ToString()
-      //           << std::endl;
-    }
     iiter->Next();
   }
   // find the max key 
@@ -460,6 +475,7 @@ void GlobalIndex::GlobalIndexBuilder(
   // initialize many skiplists
   const InternalKeyComparator& icmp = vset_->icmp_;
   const KeyComparator kcmp = KeyComparator(&icmp);
+  // init a new global index table
   GITable* gitable_ = new GITable(kcmp, &arena_);
   GITable::Node* next_level_node = nullptr;
   std::stack<GITable*> S;
