@@ -291,13 +291,12 @@ int GlobalIndex::KeyComparator::operator()(SkipListItem a, SkipListItem b) const
   return comparator->Compare(a.key, b.key);
 }
 
-// Build skip-list of global index by index_block
 void GlobalIndex::SkipListGlobalIndexBuilder(const ReadOptions& options,
                                          Iterator* iiter, uint64_t file_number,
-                                         uint64_t file_size, GITable** gitable_,
-                                         GITable::Node** next_level_node, bool is_last,
+                                         uint64_t file_size, GITable* gitable_,
+                                         GITable::Node* next_level_node, bool is_last,
                                          bool is_first,
-                                         GITable::Iterator** next_level_iter) {
+                                         GITable::Iterator* next_level_iter) {
   // TODO
   // Format of an entry is concatenation of:
   //  key               : Slice
@@ -313,14 +312,14 @@ void GlobalIndex::SkipListGlobalIndexBuilder(const ReadOptions& options,
   SkipListItem* item_ptr = nullptr;
 
   // get *next_level_node
-  if (*next_level_iter != nullptr) {
+  if (next_level_iter != nullptr) {
       if (is_first) {
-        (*next_level_iter)->SeekToHead();
-        *next_level_node = (*next_level_iter)->node_;
-        (*next_level_iter)->Next();
+        next_level_iter->SeekToHead();
+        next_level_node = next_level_iter->node_;
+        next_level_iter->Next();
       }
     } else {
-      *next_level_node = nullptr;
+      next_level_node = nullptr;
     }
 
   // iterate over all entries in index block
@@ -338,10 +337,10 @@ void GlobalIndex::SkipListGlobalIndexBuilder(const ReadOptions& options,
     item_ptr->file_number = file_number;
     item_ptr->file_size = file_size;
 
-    item_ptr->next_level_node = *next_level_node;
+    item_ptr->next_level_node = next_level_node;
 
-    (*gitable_)->Insert(*item_ptr);
-    if (*next_level_iter != nullptr) {
+    gitable_->Insert(*item_ptr);
+    if (next_level_iter != nullptr) {
       AddPtr(item_ptr->key, next_level_iter, next_level_node);
       // std::cout << "insert: key:" << item_ptr->key.ToString()
       //           << " ptr: " << (*next_level_node)->key.key.ToString()
@@ -364,15 +363,15 @@ void GlobalIndex::SkipListGlobalIndexBuilder(const ReadOptions& options,
     delete block_iter;
     // std::cout << " not last " << item_ptr->key.ToString() << std::endl;
   }
-  (*gitable_)->Insert(*item_ptr);
+  gitable_->Insert(*item_ptr);
 
-  if (*next_level_iter != nullptr) {
+  if (next_level_iter != nullptr) {
     AddPtr(item_ptr->key, next_level_iter, next_level_node);
     // std::cout << "insert: key:" << item_ptr->key.ToString()
     //           << " ptr: " << (*next_level_node)->key.key.ToString()
     //           << std::endl;
   } else {
-    *next_level_node = nullptr;
+    next_level_node = nullptr;
   }
   return;
 }
@@ -418,11 +417,12 @@ void GlobalIndex::DeleteFile(int level, uint64_t file_number,
           next_gitable_iter = new GITable::Iterator(next_gitable);
           gitable_iter->SeekToFirst();
           while (gitable_iter->Valid()) {
-            AddPtr(gitable_iter->key().key, &next_gitable_iter, &next_level_node);
+            AddPtr(gitable_iter->key().key, next_gitable_iter, next_level_node);
             // (gitable_iter->key()).SetNextNode(next_level_node);
 
             gitable_iter->Next();
           }
+          delete gitable_iter;
         }
         
         iiter = index_files_level0.erase(iiter);
@@ -434,23 +434,23 @@ void GlobalIndex::DeleteFile(int level, uint64_t file_number,
   return;
 }
 
-void GlobalIndex::AddPtr(Slice key, GITable::Iterator** next_level_ptr,
-                         GITable::Node** suit_node) {
+void GlobalIndex::AddPtr(Slice key, GITable::Iterator* next_level_ptr,
+                         GITable::Node* suit_node) {
   // TODO: 增加层间指针
   const Comparator* ucmp = vset_->icmp_.user_comparator();
-  while ((*next_level_ptr)->Valid()) {
+  while (next_level_ptr->Valid()) {
     // std::cout << key.ToString() << std::endl;
     // std::cout << (*next_level_ptr)->key().key.ToString() << std::endl;
-    if (ucmp->Compare((*next_level_ptr)->key().key, key) > 0) {
-      (*next_level_ptr)->Prev();
-      if ((*next_level_ptr)->node_ == nullptr) {
-        (*next_level_ptr)->SeekToHead();
+    if (ucmp->Compare(next_level_ptr->key().key, key) > 0) {
+      next_level_ptr->Prev();
+      if (next_level_ptr->node_ == nullptr) {
+        next_level_ptr->SeekToHead();
       }
-      *suit_node = (*next_level_ptr)->node_;
-      (*next_level_ptr)->Next();
+      suit_node = next_level_ptr->node_;
+      next_level_ptr->Next();
       break;
     }
-    (*next_level_ptr)->Next();
+    next_level_ptr->Next();
   }
   return;
 }
@@ -485,8 +485,8 @@ void GlobalIndex::GlobalIndexBuilder(
       vset->table_cache_->IndexBlockGet(f->number, f->file_size, &iiter);
       // insert this index block into the skiplist global index table
       SkipListGlobalIndexBuilder(options, iiter, f->number, f->file_size,
-                                  &gitable_, &next_level_node, is_last,
-                                  is_first, &skiplist_iter_ptr);
+                                  gitable_, next_level_node, is_last,
+                                  is_first, skiplist_iter_ptr);
     }
 
     skiplist_iter_ptr = new GITable::Iterator(gitable_);
@@ -520,8 +520,8 @@ void GlobalIndex::GlobalIndexBuilder(
             
       gitable_ = new GITable(kcmp, &arena_);
       SkipListGlobalIndexBuilder(options, iiter, f->number, f->file_size,
-                                 &gitable_, &next_level_node, true, true,
-                                 &skiplist_iter_ptr);
+                                 gitable_, next_level_node, true, true,
+                                 skiplist_iter_ptr);
       S.push(gitable_);
       skiplist_iter_ptr = new GITable::Iterator(gitable_);
       (*skiplist_iter_ptr).SeekToFirst();
