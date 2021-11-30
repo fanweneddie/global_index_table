@@ -44,7 +44,11 @@ class TableCache {
 
 
     // **********************************************
+
     // Get the index block from a table cache into iiter.
+    // @param file_number:
+    // @param file_size: Both are info of the file that stores the index block
+    // @param iiter: The secondary pointer to an iterator
     Status IndexBlockGet(uint64_t file_number, uint64_t file_size, 
                          Iterator** iiter);
 

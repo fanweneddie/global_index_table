@@ -243,6 +243,8 @@ inline void SkipList<Key, Comparator>::Iterator::Seek(const Key& target) {
 }
 
 // *********************************************************
+
+// seek the node whose ???
 template <typename Key, class Comparator>
 inline void SkipList<Key, Comparator>::Iterator::SeekWithNode(const Key& target,
                                                               Node* start_node_) {

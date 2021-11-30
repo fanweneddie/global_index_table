@@ -75,7 +75,11 @@ class LEVELDB_EXPORT Table {
 
 
   // *****************************************************************
+
+  // Return the pointer to iterator of the index block
   Iterator* IndexGet();
+
+  // ??? any difference from IndexGet???
   Iterator* GetByIndex(const ReadOptions& options, Slice& value);
   // *****************************************************************
 

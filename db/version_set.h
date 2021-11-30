@@ -59,17 +59,27 @@ bool SomeFileOverlapsRange(const InternalKeyComparator& icmp,
                            const Slice* smallest_user_key,
                            const Slice* largest_user_key);
 
+// the global index tables
+// which is an in-memory, multi-level skipList that simulates LSM tree
+// and stores the index of each sstable
 class GlobalIndex {
   public:
     struct SkipListItem;
     struct KeyComparator;
     typedef SkipList<SkipListItem, KeyComparator> GITable;
 
+    // the node in global index table
+    // it represents an index block
     struct SkipListItem {
+      // the maximum key in the data_block
       Slice key;
+      // the index(offset) to a data_block
       Slice value;
+      // the file number of the file that the index block is in
       uint64_t file_number;
+      // the size of the file that the index block is in
       uint64_t file_size;
+      // the node at next level of skiplist
       void* next_level_node = nullptr;
       SkipListItem(Slice key) {
         this->key = key;
@@ -95,18 +105,45 @@ class GlobalIndex {
     };
     
     Arena arena_;
+
+    // Search an internal key in a skip list of global index table, 
+    // and the result is saved in arg_saver
+    // @param internal_key: the internal key to be queried
+    // @param gitable_: the skip list of global index table
+    // @param next_level_: the next-level-node of the found node
+    // @param arg_saver: the saver to save operation status
+    // @param handle_result: the method to handle found result
     void SearchGITable(const ReadOptions& options, Slice internal_key,
                        GITable* gitable_, GITable::Node** next_level_,
-                       void* arg,
+                       void* arg_saver,
                        void (*handle_result)(void*, const Slice&,
                                              const Slice&));
+    
+    // Build a global index table
+    // @param files_: the meta data of each level of LSM tree
     void GlobalIndexBuilder(
         const ReadOptions& options,
         std::vector<FileMetaData*> files_[config::kNumLevels]);
-    bool GetFromGlobalIndex(const ReadOptions& options, Slice user_key,
-                            Slice internal_key, void* arg,
+
+    // Get the value of user key by using global index table
+    // @param internal_key: the internal key to be queried
+    // @param arg_saver: the saver to save operation status
+    // @param arg_stats: just pass it and don't change it by now
+    // @param handle_result: 
+    bool GetFromGlobalIndex(const ReadOptions& options,
+                            Slice internal_key, void* arg_saver, void* arg_stats,
                             void (*handle_result)(void*, const Slice&,
                                                   const Slice&));
+
+    // Build a skipList from an index block
+    // @param iiter: the pointer to iterator of index block
+    // @param file_number: the file number of the file that stores the index block
+    // @param file_size: the size of the file that stores the index block
+    // @param gitable_: ?
+    // @param next_level_node: ? 
+    // @param is_last: whether the file is the last one on its level
+    // @param is_first: whether the file is the first one on its level
+    // @param next_level_ptr: ?
     void SkipListGlobalIndexBuilder(const ReadOptions& options, Iterator* iiter,
                                     uint64_t file_number, uint64_t file_size,
                                     GITable** gitable_,
@@ -120,8 +157,16 @@ class GlobalIndex {
     VersionSet* vset_;
 
    private:
+    // skiplists of level 0 (each skiplist represents a sstable)
     std::vector<GITable*> index_files_level0;
+    // skiplists of level > 0 (each skiplist represents a level)
     std::vector<GITable*> index_files_;
+    // Add linking pointer between this node and the node on next level. 
+    // The link will points to the node whose key is just >= key
+    // Finally, suit_node will be updated.
+    // @param key: the key of the current node
+    // @param next_level_ptr: the pointer to iterator on next level
+    // @param suit_node: the suitable node to be linked to on next level
     void AddPtr(Slice key, GITable::Iterator** next_level_ptr,
                 GITable::Node** suit_node);
 };
