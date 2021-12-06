@@ -116,7 +116,7 @@ class GlobalIndex {
     //      and it will be updated after this method
     // @param handle_result: the method to handle found result
     void SearchGITable(const ReadOptions& options, Slice internal_key,
-                       GITable* gitable_, GITable::Node** next_level_,
+                       GITable* gitable_, GITable::Node* next_level_,
                        void* arg_saver,
                        void (*handle_result)(void*, const Slice&,
                                              const Slice&));

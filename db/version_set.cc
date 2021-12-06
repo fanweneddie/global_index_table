@@ -534,7 +534,7 @@ void GlobalIndex::GlobalIndexBuilder(
 }
 
 void GlobalIndex::SearchGITable(const ReadOptions& options, Slice internal_key,
-                                GITable* gitable_, GITable::Node** next_level_,
+                                GITable* gitable_, GITable::Node* next_level_,
                                 void* arg_saver,
                                 void (*handle_result)(void*, const Slice&,
                                                       const Slice&)) {
@@ -576,7 +576,7 @@ void GlobalIndex::SearchGITable(const ReadOptions& options, Slice internal_key,
       *next_skiplist_level_num_ = found_item.skiplist_level;
     }
     */
-    *next_level_ = next_level_node_;
+    next_level_ = next_level_node_;
     vset->table_cache_->GetByIndexBlock(options, found_item.file_number,
                                         found_item.file_size, &block_iter,
                                         found_item.value);
@@ -609,7 +609,7 @@ bool GlobalIndex::GetFromGlobalIndex(const ReadOptions& options,
   // Search level0
   for (uint32_t i = 0; i < index_files_level0.size(); i++) {
     // std::cout << "level: 0, file: " << i << std::endl;
-    SearchGITable(options, internal_key, index_files_level0[i], &next_level_,
+    SearchGITable(options, internal_key, index_files_level0[i], next_level_,
                   saver, handle_result);
     if (saver->state == kFound || saver->state == kDeleted) return true;
   }
@@ -618,7 +618,7 @@ bool GlobalIndex::GetFromGlobalIndex(const ReadOptions& options,
   
   for (uint32_t i = 0; i < index_files_.size(); i++) {
     // std::cout << "level: " << i + 1 << std::endl;
-    SearchGITable(options, internal_key, index_files_[i], &next_level_,
+    SearchGITable(options, internal_key, index_files_[i], next_level_,
                   saver, handle_result);
     if (saver->state == kFound || saver->state == kDeleted) return true;
   }
@@ -679,7 +679,7 @@ Status Version::Get(const ReadOptions& options, const LookupKey& k,
                     std::string* value, GetStats* stats, leveldb::GlobalIndex* global_index_) {
   stats->seek_file = nullptr;
   stats->seek_file_level = -1;
-  /*
+
   struct State {
     Saver saver;
     GetStats* stats;
@@ -745,7 +745,7 @@ Status Version::Get(const ReadOptions& options, const LookupKey& k,
   state.saver.ucmp = vset_->icmp_.user_comparator();
   state.saver.user_key = k.user_key();
   state.saver.value = value;
-  */
+  
   // ***********************************************************
   clock_t start_time, end_time;
 
@@ -773,7 +773,7 @@ Status Version::Get(const ReadOptions& options, const LookupKey& k,
   my_saver.value = &my_value;
 
   start_time = clock();
-  //ForEachOverlapping(state.saver.user_key, state.ikey, &state, &State::Match);
+  ForEachOverlapping(state.saver.user_key, state.ikey, &state, &State::Match);
   global_index_->GetFromGlobalIndex(options, k.internal_key(), &my_saver, stats, SaveValue);
   end_time = clock();
   op_count++;
