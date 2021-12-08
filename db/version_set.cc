@@ -291,7 +291,6 @@ int GlobalIndex::KeyComparator::operator()(SkipListItem a, SkipListItem b) const
   return comparator->Compare(a.key, b.key);
 }
 
-// Build skip-list of global index by index_block
 void GlobalIndex::SkipListGlobalIndexBuilder(const ReadOptions& options,
                                          Iterator* iiter, uint64_t file_number,
                                          uint64_t file_size, GITable** gitable_,
