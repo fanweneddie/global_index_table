@@ -14,6 +14,7 @@
 #include "leveldb/cache.h"
 #include "leveldb/table.h"
 #include "port/port.h"
+#include "table/filter_block.h"
 
 namespace leveldb {
 
@@ -45,13 +46,20 @@ class TableCache {
 
     // **********************************************
 
-    // Get the index block from a table cache into iiter.
+    // Get the index block into iiter 
+    // and get the filter block into filter from a table cache
     // @param file_number:
     // @param file_size: Both are info of the file that stores the index block
-    // @param iiter: The secondary pointer to an iterator
-    Status IndexBlockGet(uint64_t file_number, uint64_t file_size, 
-                         Iterator** iiter);
+    // @param iter: The secondary pointer to an iterator over index block
+    // @param filter: The secondary pointer to a filter block
+    Status IndexFilterBlockGet(uint64_t file_number, uint64_t file_size, 
+                         Iterator** iiter, FilterBlockReader** filter);
 
+    // Get the iterator of a data block into iiter, given a file and a index.
+    // @param file_number:
+    // @param file_size: Both are info of the file that stores the index block
+    // @param iiter: The secondary pointer to an iterator over data block
+    // @param value: The index information of that data block
     Status GetByIndexBlock(const ReadOptions& options, uint64_t file_number,
                            uint64_t file_size, Iterator** iiter, Slice& value);
     // **********************************************

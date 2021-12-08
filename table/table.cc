@@ -214,6 +214,7 @@ Iterator* Table::NewIterator(const ReadOptions& options) const {
 }
 
 // **************************************************************************
+
 Iterator* Table::IndexGet() {
   Iterator* iiter = rep_->index_block->NewIterator(rep_->options.comparator);
   return iiter;
@@ -222,6 +223,10 @@ Iterator* Table::IndexGet() {
 Iterator* Table::GetByIndex(const ReadOptions& options, Slice& value) {
   Iterator* iiter = BlockReader(this, options, value);
   return iiter;
+}
+
+FilterBlockReader* Table::FilterGet() {
+  return rep_->filter;
 }
 
 void IndexSeek(Iterator** iiter, const Slice& k) { (*iiter)->Seek(k); }

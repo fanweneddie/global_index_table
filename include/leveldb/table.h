@@ -9,6 +9,7 @@
 
 #include "leveldb/export.h"
 #include "leveldb/iterator.h"
+#include "table/filter_block.h"
 
 namespace leveldb {
 
@@ -76,11 +77,15 @@ class LEVELDB_EXPORT Table {
 
   // *****************************************************************
 
-  // Return the pointer to iterator of the index block
+  // Return the pointer to iterator over the index block.
   Iterator* IndexGet();
 
-  // ??? any difference from IndexGet???
+  // Return the pointer to iterator over the data block, given the index value.
+  // @param value: The index value
   Iterator* GetByIndex(const ReadOptions& options, Slice& value);
+
+  // Return the pointer to a filter block.
+  FilterBlockReader* FilterGet();
   // *****************************************************************
 
   void ReadMeta(const Footer& footer);

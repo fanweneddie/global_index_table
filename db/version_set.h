@@ -25,6 +25,7 @@
 #include "port/thread_annotations.h"
 #include "db/skiplist.h"
 #include "table/block.h"
+#include "table/filter_block.h"
 
 namespace leveldb {
 
@@ -81,6 +82,12 @@ class GlobalIndex {
       uint64_t file_size;
       // the node at next level of skiplist
       void* next_level_node = nullptr;
+      // the node that contains the filter of the sstable
+      void* filter_node = nullptr;
+      // the bloom filter block of filter_node
+      // if current node is not filter_node, then filter is null
+      FilterBlockReader* filter = nullptr;
+
       SkipListItem(Slice key) {
         this->key = key;
       };
@@ -89,11 +96,17 @@ class GlobalIndex {
         this->next_level_node = next_level_node;
       };
       SkipListItem(Slice key, Slice value, uint64_t file_number,
-                   void* next_level_node) {
+                   void* next_level_node, void* filter_node, 
+                   FilterBlockReader* filter) {
         this->key = key;
         this->value = value;
         this->file_number = file_number;
         this->next_level_node = next_level_node;
+        this->filter_node = filter_node;
+        this->filter = filter;
+      }
+      bool IsFilterNode() {
+        return filter != nullptr; 
       }
     };
     // TODO:
@@ -143,6 +156,7 @@ class GlobalIndex {
     // At last, some nodes will be inserted into *gitable_
     // @param iiter: the pointer to iterator of index block, 
     //      and this iterator may be changed after this method
+    // @param filter: the pointer to a bloom filter
     // @param file_number: the file number of the file that stores the index block
     // @param file_size: the size of the file that stores the index block
     // @param gitable_: the pointer to a global index table (skiplist)
@@ -153,7 +167,7 @@ class GlobalIndex {
     // @param next_level_ptr: the iterator of next level, 
     //      and it may be updated after this method
     void SkipListGlobalIndexBuilder(const ReadOptions& options, Iterator* iiter,
-                                    uint64_t file_number, uint64_t file_size,
+                                    FilterBlockReader* filter, uint64_t file_number, uint64_t file_size,
                                     GITable** gitable_,
                                     GITable::Node** next_level_node,
                                     bool is_last, bool is_first,

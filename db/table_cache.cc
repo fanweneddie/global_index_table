@@ -120,10 +120,9 @@ Status TableCache::Get(const ReadOptions& options, uint64_t file_number,
 
 
 // **************************************************************************
-// Get the iterator of the index block,
-// which is stored in iiter 
-Status TableCache::IndexBlockGet(uint64_t file_number, uint64_t file_size,
-                                 Iterator** iiter) {
+
+Status TableCache::IndexFilterBlockGet(uint64_t file_number, uint64_t file_size, 
+                         Iterator** iiter, FilterBlockReader** filter) {
   Cache::Handle* handle = nullptr;
   Status s = FindTable(file_number, file_size, &handle);
   if (s.ok()) {
@@ -132,11 +131,11 @@ Status TableCache::IndexBlockGet(uint64_t file_number, uint64_t file_size,
     // s = t->IndexGet();
     // Done.
     *iiter = t->IndexGet();
+    *filter = t->FilterGet();
     cache_->Release(handle);
   }
   return s;
 }
-
 
 Status TableCache::GetByIndexBlock(const ReadOptions& options,
                                    uint64_t file_number, uint64_t file_size,

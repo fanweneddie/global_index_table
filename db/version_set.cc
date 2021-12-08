@@ -291,8 +291,8 @@ int GlobalIndex::KeyComparator::operator()(SkipListItem a, SkipListItem b) const
   return comparator->Compare(a.key, b.key);
 }
 
-void GlobalIndex::SkipListGlobalIndexBuilder(const ReadOptions& options,
-                                         Iterator* iiter, uint64_t file_number,
+void GlobalIndex::SkipListGlobalIndexBuilder(const ReadOptions& options, Iterator* iiter, 
+                                         FilterBlockReader* filter, uint64_t file_number,
                                          uint64_t file_size, GITable** gitable_,
                                          GITable::Node** next_level_node, bool is_last,
                                          bool is_first,
@@ -480,10 +480,12 @@ void GlobalIndex::GlobalIndexBuilder(
       FileMetaData* f = files_[level][i];
       VersionSet* vset = vset_;
       Iterator* iiter;
-      // get the index block of this sstable into, and save its iterator into iiter
-      vset->table_cache_->IndexBlockGet(f->number, f->file_size, &iiter);
-      // insert this index block into the skiplist global index table
-      SkipListGlobalIndexBuilder(options, iiter, f->number, f->file_size,
+      FilterBlockReader* filter;
+      // get the index block of this sstable, and save its iterator into iiter
+      // also, get the filter of this sstable, and save it into filter
+      vset->table_cache_->IndexFilterBlockGet(f->number, f->file_size, &iiter, &filter);
+      // insert this index block and filter block into the skiplist global index table
+      SkipListGlobalIndexBuilder(options, iiter, filter, f->number, f->file_size,
                                   &gitable_, &next_level_node, is_last,
                                   is_first, &skiplist_iter_ptr);
     }
@@ -515,10 +517,11 @@ void GlobalIndex::GlobalIndexBuilder(
 
       VersionSet* vset = vset_;
       Iterator* iiter;
-      vset->table_cache_->IndexBlockGet(f->number, f->file_size, &iiter);
+      FilterBlockReader* filter;
+      vset->table_cache_->IndexFilterBlockGet(f->number, f->file_size, &iiter, &filter);
             
       gitable_ = new GITable(kcmp, &arena_);
-      SkipListGlobalIndexBuilder(options, iiter, f->number, f->file_size,
+      SkipListGlobalIndexBuilder(options, iiter, filter, f->number, f->file_size,
                                  &gitable_, &next_level_node, true, true,
                                  &skiplist_iter_ptr);
       S.push(gitable_);
