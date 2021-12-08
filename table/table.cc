@@ -225,13 +225,10 @@ Iterator* Table::GetByIndex(const ReadOptions& options, Slice& value) {
   return iiter;
 }
 
-<<<<<<< HEAD
 FilterBlockReader* Table::FilterGet() {
   return rep_->filter;
 }
 
-=======
->>>>>>> ef432b6... up-down方法搜索跳表
 void IndexSeek(Iterator** iiter, const Slice& k) { (*iiter)->Seek(k); }
 
 // **************************************************************************
