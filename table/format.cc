@@ -9,7 +9,6 @@
 #include "table/block.h"
 #include "util/coding.h"
 #include "util/crc32c.h"
-#include <iostream>
 
 namespace leveldb {
 

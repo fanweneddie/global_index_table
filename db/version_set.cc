@@ -22,6 +22,7 @@
 #include "util/coding.h"
 #include "util/logging.h"
 #include "table/block.h"
+#include "table/format.h"
 
 namespace leveldb {
 
@@ -287,6 +288,40 @@ static bool NewestLast(FileMetaData* a, FileMetaData* b) {
   return a->number < b->number;
 }
 
+// check whether two getting operation have the same result
+// The results are stored in saver_1 and saver_2, respectively
+void CheckIsSameResult(Saver saver_1, Saver saver_2) {
+
+  if (saver_1.user_key != saver_2.user_key) {
+    std::cout << "keys are not identical, invalid check.\n";
+    return;
+  }
+
+  std::cout << "key is " << saver_1.user_key.ToString() << std::endl;
+  // 1. both have found same value
+  if (saver_1.state == kFound && saver_2.state == kFound 
+      && *(saver_1.value) == *(saver_2.value)) {
+    std::cout << "Both found same value: " << *(saver_1.value) << std::endl;
+  } 
+  // 2. both haven't found
+  else if (saver_1.state != kFound && saver_2.state != kFound){
+      std::cout << "Both not found " << std::endl;
+  }
+  // 3. different result
+  else {
+    if (saver_1.state == kFound) {
+      std::cout << "w/o git, value is " << *(saver_1.value) << std::endl;
+    } else { 
+      std::cout << "w/o git, not found\n";
+    }
+    if (saver_2.state == kFound) {
+      std::cout << "w git, value is " << *(saver_2.value) << std::endl;
+    } else { 
+      std::cout << "w git, not found\n";
+    }
+  }
+}
+
 int GlobalIndex::KeyComparator::operator()(SkipListItem a, SkipListItem b) const {
   return comparator->Compare(a.key, b.key);
 }
@@ -310,7 +345,8 @@ void GlobalIndex::SkipListGlobalIndexBuilder(const ReadOptions& options, Iterato
   size_t item_size = sizeof(SkipListItem);
 
   SkipListItem* item_ptr = nullptr;
-
+  // the pointer to the first node
+  SkipListItem* first_item_ptr;
   if (iiter->Valid()) {
     item_ptr = (SkipListItem*)arena_.Allocate(item_size);
     char* key_data = (char*)arena_.Allocate(iiter->key().size());
@@ -323,7 +359,9 @@ void GlobalIndex::SkipListGlobalIndexBuilder(const ReadOptions& options, Iterato
 
     item_ptr->file_number = file_number;
     item_ptr->file_size = file_size;
-
+    // set the filter at the first node of this index block
+    item_ptr->filter = filter;
+    item_ptr->filter_node = item_ptr;
     if (*next_level_iter != nullptr) {
       if (is_first) {
         (*next_level_iter)->SeekToHead();
@@ -334,6 +372,7 @@ void GlobalIndex::SkipListGlobalIndexBuilder(const ReadOptions& options, Iterato
       *next_level_node = nullptr;
     }
     item_ptr->next_level_node = *next_level_node;
+    first_item_ptr = item_ptr;
   }
   iiter->Next();
   while (iiter->Valid()) {
@@ -361,6 +400,9 @@ void GlobalIndex::SkipListGlobalIndexBuilder(const ReadOptions& options, Iterato
     item_ptr->file_size = file_size;
 
     item_ptr->next_level_node = *next_level_node;
+    // set the filter at other nodes of this index block
+    item_ptr->filter = nullptr;
+    item_ptr->filter_node = first_item_ptr;
     iiter->Next();
   }
   // find the max key 
@@ -375,6 +417,8 @@ void GlobalIndex::SkipListGlobalIndexBuilder(const ReadOptions& options, Iterato
     char* key_data = (char*)arena_.Allocate(block_iter->key().size());
     memcpy(key_data, block_iter->key().data(), block_iter->key().size());
     item_ptr->key = Slice(key_data, block_iter->key().size());
+    //item_ptr->filter = nullptr;
+    //item_ptr->filter_node = first_item_ptr;
     delete block_iter;
     // std::cout << " not last " << item_ptr->key.ToString() << std::endl;
   }
@@ -578,6 +622,18 @@ void GlobalIndex::SearchGITable(const ReadOptions& options, Slice internal_key,
   if(index_iter->Valid()) {
     // Found.
     SkipListItem found_item = index_iter->key();
+    // use bloom filter to check whether the key is definitely not in
+    if (found_item.filter_node) {
+      FilterBlockReader* filter = ((SkipListItem*)(found_item.filter_node))->filter;
+      Slice handle_value = found_item.value;
+      BlockHandle handle;
+      // the key is definitely not in the data block, so we just return
+      if (handle.DecodeFrom(&handle_value).ok() && 
+            !filter->KeyMayMatch(handle.offset(), internal_key)) {
+          delete index_iter;
+          return;
+      }
+    }
     VersionSet* vset = vset_;
     Iterator* block_iter;
     // 汇总level0的信息，确定下一层的指针位置。
@@ -600,7 +656,7 @@ void GlobalIndex::SearchGITable(const ReadOptions& options, Slice internal_key,
                                         found_item.value);
     block_iter->Seek(internal_key);
     if (block_iter->Valid()) {
-      // std::cout << "my found key: " << block_iter->key().ToString()
+      //std::cout << "my found key: " << block_iter->key().ToString()
       //           << std::endl;
       (*handle_result)(arg_saver, block_iter->key(), block_iter->value());
     }
@@ -697,7 +753,7 @@ Status Version::Get(const ReadOptions& options, const LookupKey& k,
                     std::string* value, GetStats* stats, leveldb::GlobalIndex* global_index_) {
   stats->seek_file = nullptr;
   stats->seek_file_level = -1;
-  /*
+
   struct State {
     Saver saver;
     GetStats* stats;
@@ -763,7 +819,7 @@ Status Version::Get(const ReadOptions& options, const LookupKey& k,
   state.saver.ucmp = vset_->icmp_.user_comparator();
   state.saver.user_key = k.user_key();
   state.saver.value = value;
-  */
+
   // ***********************************************************
   clock_t start_time, end_time;
 
@@ -791,7 +847,7 @@ Status Version::Get(const ReadOptions& options, const LookupKey& k,
   my_saver.value = &my_value;
 
   start_time = clock();
-  //ForEachOverlapping(state.saver.user_key, state.ikey, &state, &State::Match);
+  ForEachOverlapping(state.saver.user_key, state.ikey, &state, &State::Match);
   global_index_->GetFromGlobalIndex(options, k.internal_key(), &my_saver, stats, SaveValue);
   end_time = clock();
   op_count++;
@@ -804,10 +860,7 @@ Status Version::Get(const ReadOptions& options, const LookupKey& k,
     running_time = 0;
   }
   // **************************************************************
-
-  // if (state.found && my_value != *value) {
-  //   std::cout << "false!" << std::endl;
-  // }
+  CheckIsSameResult(state.saver, my_saver);
   return (my_saver.state == kFound || my_saver.state == kDeleted)
              ? Status::OK()
              : Status::NotFound(Slice());

@@ -105,9 +105,6 @@ class GlobalIndex {
         this->filter_node = filter_node;
         this->filter = filter;
       }
-      bool IsFilterNode() {
-        return filter != nullptr; 
-      }
     };
     // TODO:
     // Comparator
