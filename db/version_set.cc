@@ -288,7 +288,7 @@ static bool NewestLast(FileMetaData* a, FileMetaData* b) {
   return a->number < b->number;
 }
 
-// check whether two getting operation have the same result
+// Check whether two getting operation have the same result
 // The results are stored in saver_1 and saver_2, respectively
 void CheckIsSameResult(Saver saver_1, Saver saver_2) {
 
@@ -360,7 +360,7 @@ void GlobalIndex::SkipListGlobalIndexBuilder(const ReadOptions& options, Iterato
     item_ptr->file_number = file_number;
     item_ptr->file_size = file_size;
     // set the filter at the first node of this index block
-    item_ptr->filter = filter;
+    item_ptr->filter = new FilterBlockReader(*filter);
     item_ptr->filter_node = item_ptr;
     if (*next_level_iter != nullptr) {
       if (is_first) {
@@ -549,12 +549,15 @@ void GlobalIndex::GlobalIndexBuilder(
                                   &gitable_, &next_level_node, is_last,
                                   is_first, &skiplist_iter_ptr);
     }
-
+    if (skiplist_iter_ptr != nullptr) {
+      delete skiplist_iter_ptr;
+    }
     skiplist_iter_ptr = new GITable::Iterator(gitable_);
     (*skiplist_iter_ptr).SeekToFirst();
     S.push(gitable_);
     gitable_ = new GITable(kcmp, &arena_);
   }
+  delete gitable_;
   while (!S.empty()) {
     index_files_.push_back(S.top());
     S.pop();
@@ -585,6 +588,9 @@ void GlobalIndex::GlobalIndexBuilder(
                                  &gitable_, &next_level_node, true, true,
                                  &skiplist_iter_ptr);
       S.push(gitable_);
+      if (skiplist_iter_ptr != nullptr) {
+        delete skiplist_iter_ptr;
+      }
       skiplist_iter_ptr = new GITable::Iterator(gitable_);
       (*skiplist_iter_ptr).SeekToFirst();
     }

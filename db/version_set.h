@@ -105,6 +105,13 @@ class GlobalIndex {
         this->filter_node = filter_node;
         this->filter = filter;
       }
+      /*
+      ~SkipListItem() {
+        if (filter != nullptr) {
+          delete filter;
+        }
+      }
+      */
     };
     // TODO:
     // Comparator
@@ -173,6 +180,8 @@ class GlobalIndex {
 
     void DeleteFile(int level, uint64_t file_number, const ReadOptions& options,
                     InternalKey smallest, InternalKey largest);
+
+    ~GlobalIndex();
     VersionSet* vset_;
 
    private:
