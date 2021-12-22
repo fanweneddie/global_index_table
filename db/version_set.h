@@ -87,7 +87,6 @@ class GlobalIndex {
       // the bloom filter block of filter_node
       // if current node is not filter_node, then filter is null
       FilterBlockReader* filter = nullptr;
-
       SkipListItem(Slice key) {
         this->key = key;
       };
@@ -105,13 +104,63 @@ class GlobalIndex {
         this->filter_node = filter_node;
         this->filter = filter;
       }
-      /*
+
+      SkipListItem(const SkipListItem& skip_list_item) {
+        // deep copy key, value and filter
+        int key_size = skip_list_item.key.size();
+        char* key_data = new char[key_size];
+        memcpy(key_data, skip_list_item.key.data(), key_size);
+        this->key = Slice(key_data, key_size);
+
+        int value_size = skip_list_item.value.size();
+        char* value_data = new char[value_size];
+        memcpy(value_data, skip_list_item.value.data(), value_size);
+        this->value = Slice(value_data, value_size);
+
+        this->file_number = skip_list_item.file_number;
+        this->next_level_node = skip_list_item.next_level_node;
+        this->filter_node = skip_list_item.filter_node;
+    
+        if (skip_list_item.filter != nullptr) {
+          this->filter = new FilterBlockReader(*(skip_list_item.filter));
+        } else {
+          this->filter = nullptr;
+        }
+      }
+
+      SkipListItem& operator=(const SkipListItem& skip_list_item){
+        if (this != &skip_list_item) {
+          // deep copy key, value and filter
+          int key_size = skip_list_item.key.size();
+          char* key_data = new char[key_size];
+          memcpy(key_data, skip_list_item.key.data(), key_size);
+          this->key = Slice(key_data, key_size);
+
+          int value_size = skip_list_item.value.size();
+          char* value_data = new char[value_size];
+          memcpy(value_data, skip_list_item.value.data(), value_size);
+          this->value = Slice(value_data, value_size);
+
+          this->file_number = skip_list_item.file_number;
+          this->next_level_node = skip_list_item.next_level_node;
+          this->filter_node = skip_list_item.filter_node;
+    
+          if (skip_list_item.filter != nullptr) {
+            this->filter = new FilterBlockReader(*(skip_list_item.filter));
+          } else {
+            this->filter = nullptr;
+          }
+        }
+        return *this;
+      }
+
       ~SkipListItem() {
-        if (filter != nullptr) {
+        if (!key.empty()) {
+          delete [] key.data();
+          delete [] value.data();
           delete filter;
         }
       }
-      */
     };
     // TODO:
     // Comparator
