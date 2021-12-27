@@ -824,6 +824,7 @@ Status Version::Get(const ReadOptions& options, const LookupKey& k,
       return false;
     }
   };
+  // this state shows whether the key is found by using index block
   State state;
   state.found = false;
   state.stats = stats;
@@ -842,22 +843,25 @@ Status Version::Get(const ReadOptions& options, const LookupKey& k,
   // ***********************************************************
   clock_t start_time, end_time;
 
-  if (global_index_ == nullptr) {
-    return Status::NotFound(Slice());
-  }
-  if (!global_index_->global_index_exists_) {
-    std::cout << "index build:" << std::endl;
-    start_time = clock();
-    global_index_->vset_ = vset_;
-    global_index_->GlobalIndexBuilder(options, files_);
-    end_time = clock();
-    std::cout << "The run time is: "
-              << (double)(end_time - start_time) * 1000 / CLOCKS_PER_SEC << "ms"
-              << std::endl;
-    global_index_->global_index_exists_ = true;
+  // Build global index table if we need to use it
+  if (options.useGITable()) {
+    if (global_index_ == nullptr) {
+      return Status::NotFound(Slice());
+    }
+    if (!global_index_->global_index_exists_) {
+      std::cout << "index build:" << std::endl;
+      start_time = clock();
+      global_index_->vset_ = vset_;
+      global_index_->GlobalIndexBuilder(options, files_);
+      end_time = clock();
+      std::cout << "The run time is: "
+                << (double)(end_time - start_time) * 1000 / CLOCKS_PER_SEC
+                << "ms" << std::endl;
+      global_index_->global_index_exists_ = true;
+    }
   }
 
-  // define a state to denote whether the key is found in lsm tree
+  // my_saver shows whether the key is found by using global index table
   Saver my_saver;
   std::string my_value;
   my_saver.state = kNotFound;
@@ -866,8 +870,13 @@ Status Version::Get(const ReadOptions& options, const LookupKey& k,
   my_saver.value = &my_value;
 
   start_time = clock();
-  ForEachOverlapping(state.saver.user_key, state.ikey, &state, &State::Match);
-  global_index_->GetFromGlobalIndex(options, k.internal_key(), &my_saver, stats, SaveValue);
+  if (options.useIndexBlock()) {
+    ForEachOverlapping(state.saver.user_key, state.ikey, &state, &State::Match);
+  }
+  if (options.useGITable()) {
+    global_index_->GetFromGlobalIndex(options, k.internal_key(), &my_saver,
+                                      stats, SaveValue);
+  }
   end_time = clock();
   op_count++;
   running_time += (end_time - start_time);
@@ -879,8 +888,11 @@ Status Version::Get(const ReadOptions& options, const LookupKey& k,
     running_time = 0;
   }
   // **************************************************************
-  CheckIsSameResult(state.saver, my_saver);
-  return (my_saver.state == kFound || my_saver.state == kDeleted)
+  if (options.useGITableAndIndexBlock()) {
+    CheckIsSameResult(state.saver, my_saver);
+  }
+  return (my_saver.state == kFound || my_saver.state == kDeleted ||
+          state.saver.state == kFound || state.saver.state == kDeleted)
              ? Status::OK()
              : Status::NotFound(Slice());
   // return state.found ? state.s : Status::NotFound(Slice());

@@ -114,7 +114,7 @@ Options SanitizeOptions(const std::string& dbname,
     }
   }
   if (result.block_cache == nullptr) {
-    result.block_cache = NewLRUCache(64 << 20);
+    result.block_cache = NewLRUCache(8 << 20);
   }
   return result;
 }
@@ -168,6 +168,7 @@ DBImpl::~DBImpl() {
   delete versions_;
   if (mem_ != nullptr) mem_->Unref();
   if (imm_ != nullptr) imm_->Unref();
+  delete global_index;
   delete tmp_batch_;
   delete log_;
   delete logfile_;

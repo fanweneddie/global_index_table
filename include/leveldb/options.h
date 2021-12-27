@@ -6,6 +6,7 @@
 #define STORAGE_LEVELDB_INCLUDE_OPTIONS_H_
 
 #include <cstddef>
+#include <cassert>
 
 #include "leveldb/export.h"
 
@@ -155,6 +156,24 @@ struct LEVELDB_EXPORT Options {
 struct LEVELDB_EXPORT ReadOptions {
   ReadOptions() = default;
 
+  // To pass use_gitable into ReadOptions
+  ReadOptions(int use_gitable) {
+    assert(use_gitable == 0 || use_gitable == 1 || use_gitable == 2);
+    this->use_gitable = use_gitable;
+  }
+
+  bool useGITable() const {
+    return use_gitable != 0;
+  }
+
+  bool useIndexBlock() const {
+    return use_gitable != 1;
+  }
+
+  bool useGITableAndIndexBlock() const {
+    return use_gitable == 2;
+  }
+
   // If true, all data read from underlying storage will be
   // verified against corresponding checksums.
   bool verify_checksums = false;
@@ -168,6 +187,12 @@ struct LEVELDB_EXPORT ReadOptions {
   // not have been released).  If "snapshot" is null, use an implicit
   // snapshot of the state at the beginning of this read operation.
   const Snapshot* snapshot = nullptr;
+
+  // Whether to use global index table
+  // If 0, don't use global index table
+  // If 1, only use global index table
+  // If 2, use both index block and global index table and make comparison
+  int use_gitable = 0;
 };
 
 // Options that control write operations

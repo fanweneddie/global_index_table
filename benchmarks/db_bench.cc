@@ -121,6 +121,12 @@ static bool FLAGS_reuse_logs = false;
 // Use the db with the following name.
 static const char* FLAGS_db = nullptr;
 
+// Whether to use global index table
+// If 0, don't use global index table
+// If 1, only use global index table
+// If 2, use both index block and global index table and make comparison
+static int FLAGS_use_gitable = 0;
+
 namespace leveldb {
 
 namespace {
@@ -821,7 +827,7 @@ class Benchmark {
   }
 
   void ReadSequential(ThreadState* thread) {
-    Iterator* iter = db_->NewIterator(ReadOptions());
+    Iterator* iter = db_->NewIterator(ReadOptions(FLAGS_use_gitable));
     int i = 0;
     int64_t bytes = 0;
     for (iter->SeekToFirst(); i < reads_ && iter->Valid(); iter->Next()) {
@@ -834,7 +840,7 @@ class Benchmark {
   }
 
   void ReadReverse(ThreadState* thread) {
-    Iterator* iter = db_->NewIterator(ReadOptions());
+    Iterator* iter = db_->NewIterator(ReadOptions(FLAGS_use_gitable));
     int i = 0;
     int64_t bytes = 0;
     for (iter->SeekToLast(); i < reads_ && iter->Valid(); iter->Prev()) {
@@ -847,7 +853,7 @@ class Benchmark {
   }
 
   void ReadRandom(ThreadState* thread) {
-    ReadOptions options;
+    ReadOptions options = ReadOptions(FLAGS_use_gitable);
     std::string value;
     int found = 0;
     KeyBuffer key;
@@ -865,7 +871,7 @@ class Benchmark {
   }
 
   void ReadMissing(ThreadState* thread) {
-    ReadOptions options;
+    ReadOptions options = ReadOptions(FLAGS_use_gitable);
     std::string value;
     KeyBuffer key;
     for (int i = 0; i < reads_; i++) {
@@ -878,7 +884,7 @@ class Benchmark {
   }
 
   void ReadHot(ThreadState* thread) {
-    ReadOptions options;
+    ReadOptions options = ReadOptions(FLAGS_use_gitable);
     std::string value;
     const int range = (FLAGS_num + 99) / 100;
     KeyBuffer key;
@@ -891,7 +897,7 @@ class Benchmark {
   }
 
   void SeekRandom(ThreadState* thread) {
-    ReadOptions options;
+    ReadOptions options = ReadOptions(FLAGS_use_gitable);
     int found = 0;
     KeyBuffer key;
     for (int i = 0; i < reads_; i++) {
@@ -909,7 +915,7 @@ class Benchmark {
   }
 
   void SeekOrdered(ThreadState* thread) {
-    ReadOptions options;
+    ReadOptions options = ReadOptions(FLAGS_use_gitable);
     Iterator* iter = db_->NewIterator(options);
     int found = 0;
     int k = 0;
@@ -1069,9 +1075,12 @@ int main(int argc, char** argv) {
       FLAGS_open_files = n;
     } else if (strncmp(argv[i], "--db=", 5) == 0) {
       FLAGS_db = argv[i] + 5;
+    } else if (sscanf(argv[i], "--use_gitable=%d%c", &n, &junk) == 1 &&
+               (n == 0 || n == 1 || n == 2)) {
+      FLAGS_use_gitable = n;
     } else {
-      std::fprintf(stderr, "Invalid flag '%s'\n", argv[i]);
-      std::exit(1);
+        std::fprintf(stderr, "Invalid flag '%s'\n", argv[i]);
+        std::exit(1);
     }
   }
 
