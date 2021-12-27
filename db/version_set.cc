@@ -719,16 +719,6 @@ bool GlobalIndex::GetFromGlobalIndex(const ReadOptions& options,
   // std::cout << "not found!" << std::endl;
   return false;
 }
-
-GlobalIndex::~GlobalIndex() {
-  for (auto itr = index_files_level0.begin(); itr != index_files_level0.end(); ++itr) {
-    delete *itr;
-  }
-  for (auto itr = index_files_.begin(); itr != index_files_.end(); ++itr) {
-    delete *itr;
-  }
-}
-
 // ****************************************************
 
 void Version::ForEachOverlapping(Slice user_key, Slice internal_key, void* arg,
