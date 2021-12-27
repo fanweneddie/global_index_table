@@ -347,6 +347,11 @@ void GlobalIndex::SkipListGlobalIndexBuilder(const ReadOptions& options, Iterato
   SkipListItem* item_ptr = nullptr;
   // the pointer to the first node
   SkipListItem* first_item_ptr;
+  // the pointer to the shallow replicated filter
+  FilterBlockReader* repl_filter_ptr = (FilterBlockReader*)arena_.
+                                       Allocate(sizeof(FilterBlockReader));
+  *repl_filter_ptr = *filter;
+
   if (iiter->Valid()) {
     item_ptr = (SkipListItem*)arena_.Allocate(item_size);
     char* key_data = (char*)arena_.Allocate(iiter->key().size());
@@ -360,7 +365,8 @@ void GlobalIndex::SkipListGlobalIndexBuilder(const ReadOptions& options, Iterato
     item_ptr->file_number = file_number;
     item_ptr->file_size = file_size;
     // set the filter at the first node of this index block
-    item_ptr->filter = new FilterBlockReader(*filter);
+
+    item_ptr->filter = repl_filter_ptr;
     item_ptr->filter_node = item_ptr;
     if (*next_level_iter != nullptr) {
       if (is_first) {
@@ -417,8 +423,6 @@ void GlobalIndex::SkipListGlobalIndexBuilder(const ReadOptions& options, Iterato
     char* key_data = (char*)arena_.Allocate(block_iter->key().size());
     memcpy(key_data, block_iter->key().data(), block_iter->key().size());
     item_ptr->key = Slice(key_data, block_iter->key().size());
-    //item_ptr->filter = nullptr;
-    //item_ptr->filter_node = first_item_ptr;
     delete block_iter;
     // std::cout << " not last " << item_ptr->key.ToString() << std::endl;
   }
@@ -490,6 +494,15 @@ void GlobalIndex::DeleteFile(int level, uint64_t file_number,
   }
   delete index_iter;
   return;
+}
+
+GlobalIndex::~GlobalIndex() {
+  for (auto itr = index_files_level0.begin(); itr != index_files_level0.end(); ++itr) {
+    delete *itr;
+  }
+  for (auto itr = index_files_.begin(); itr != index_files_.end(); ++itr) {
+    delete *itr;
+  }
 }
 
 void GlobalIndex::AddPtr(Slice key, GITable::Iterator** next_level_ptr,
@@ -610,11 +623,10 @@ void GlobalIndex::SearchGITable(const ReadOptions& options, Slice internal_key,
   
   GITable::Iterator* index_iter = nullptr;
   GITable::Node* next_level_node_ = nullptr;
-  
-  SkipListItem* item_ptr = (SkipListItem*)arena_.Allocate(sizeof(SkipListItem));
-  char* key_data = (char*)arena_.Allocate(internal_key.size());
+  // use a simple static allocation
+  char* key_data = new char[internal_key.size()];
   memcpy(key_data, internal_key.data(), internal_key.size());
-  item_ptr->key = Slice(internal_key);
+  SkipListItem search_item = SkipListItem(Slice(internal_key));
 
   index_iter = new GITable::Iterator(gitable_);
   // if (*next_level_ != nullptr) {
@@ -624,7 +636,7 @@ void GlobalIndex::SearchGITable(const ReadOptions& options, Slice internal_key,
   //   // std::cout << "seek without node" << std::endl;
   //   index_iter->Seek(*item_ptr);
   // }
-  index_iter->Seek(*item_ptr);
+  index_iter->Seek(search_item);
   if(index_iter->Valid()) {
     // Found.
     SkipListItem found_item = index_iter->key();
@@ -636,6 +648,7 @@ void GlobalIndex::SearchGITable(const ReadOptions& options, Slice internal_key,
       // the key is definitely not in the data block, so we just return
       if (handle.DecodeFrom(&handle_value).ok() && 
             !filter->KeyMayMatch(handle.offset(), internal_key)) {
+          delete [] key_data;
           delete index_iter;
           return;
       }
@@ -670,6 +683,7 @@ void GlobalIndex::SearchGITable(const ReadOptions& options, Slice internal_key,
     delete block_iter;
     // found;
   }
+  delete [] key_data;
   delete index_iter;
 }
 

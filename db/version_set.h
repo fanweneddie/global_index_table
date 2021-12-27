@@ -105,13 +105,6 @@ class GlobalIndex {
         this->filter_node = filter_node;
         this->filter = filter;
       }
-      /*
-      ~SkipListItem() {
-        if (filter != nullptr) {
-          delete filter;
-        }
-      }
-      */
     };
     // TODO:
     // Comparator
