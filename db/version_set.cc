@@ -345,8 +345,6 @@ void GlobalIndex::SkipListGlobalIndexBuilder(const ReadOptions& options, Iterato
   size_t item_size = sizeof(SkipListItem);
 
   SkipListItem* item_ptr = nullptr;
-  // the pointer to the first node
-  SkipListItem* first_item_ptr;
   // the pointer to the shallow replicated filter
   FilterBlockReader* repl_filter_ptr;
   if (filter) {
@@ -368,10 +366,7 @@ void GlobalIndex::SkipListGlobalIndexBuilder(const ReadOptions& options, Iterato
 
     item_ptr->file_number = file_number;
     item_ptr->file_size = file_size;
-    // set the filter at the first node of this index block
 
-    item_ptr->filter = repl_filter_ptr;
-    item_ptr->filter_node = item_ptr;
     if (*next_level_iter != nullptr) {
       if (is_first) {
         (*next_level_iter)->SeekToHead();
@@ -382,7 +377,7 @@ void GlobalIndex::SkipListGlobalIndexBuilder(const ReadOptions& options, Iterato
       *next_level_node = nullptr;
     }
     item_ptr->next_level_node = *next_level_node;
-    first_item_ptr = item_ptr;
+    item_ptr->filter = repl_filter_ptr;
   }
   iiter->Next();
   while (iiter->Valid()) {
@@ -410,9 +405,7 @@ void GlobalIndex::SkipListGlobalIndexBuilder(const ReadOptions& options, Iterato
     item_ptr->file_size = file_size;
 
     item_ptr->next_level_node = *next_level_node;
-    // set the filter at other nodes of this index block
-    item_ptr->filter = nullptr;
-    item_ptr->filter_node = first_item_ptr;
+    item_ptr->filter = repl_filter_ptr;
     iiter->Next();
   }
   // find the max key 
@@ -641,13 +634,12 @@ void GlobalIndex::SearchGITable(const ReadOptions& options, Slice internal_key,
     // Found.
     SkipListItem found_item = index_iter->key();
     // use bloom filter to check whether the key is definitely not in
-    if (found_item.filter_node) {
-      FilterBlockReader* filter = ((SkipListItem*)(found_item.filter_node))->filter;
+    if (found_item.filter) {
       Slice handle_value = found_item.value;
       BlockHandle handle;
       // the key is definitely not in the data block, so we just return
-      if (handle.DecodeFrom(&handle_value).ok() && filter &&
-            !filter->KeyMayMatch(handle.offset(), internal_key)) {
+      if (handle.DecodeFrom(&handle_value).ok() && found_item.filter &&
+            !found_item.filter->KeyMayMatch(handle.offset(), internal_key)) {
           delete [] key_data;
           delete index_iter;
           return;

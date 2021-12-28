@@ -82,10 +82,7 @@ class GlobalIndex {
       uint64_t file_size;
       // the node at next level of skiplist
       void* next_level_node = nullptr;
-      // the node that contains the filter of the sstable
-      void* filter_node = nullptr;
-      // the bloom filter block of filter_node
-      // if current node is not filter_node, then filter is null
+      // The filter of the sstable that this data block is at
       FilterBlockReader* filter = nullptr;
       SkipListItem(Slice key) {
         this->key = key;
@@ -95,13 +92,11 @@ class GlobalIndex {
         this->next_level_node = next_level_node;
       };
       SkipListItem(Slice key, Slice value, uint64_t file_number,
-                   void* next_level_node, void* filter_node, 
-                   FilterBlockReader* filter) {
+                   void* next_level_node, FilterBlockReader* filter) {
         this->key = key;
         this->value = value;
         this->file_number = file_number;
         this->next_level_node = next_level_node;
-        this->filter_node = filter_node;
         this->filter = filter;
       }
     };
