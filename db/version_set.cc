@@ -348,9 +348,13 @@ void GlobalIndex::SkipListGlobalIndexBuilder(const ReadOptions& options, Iterato
   // the pointer to the first node
   SkipListItem* first_item_ptr;
   // the pointer to the shallow replicated filter
-  FilterBlockReader* repl_filter_ptr = (FilterBlockReader*)arena_.
-                                       Allocate(sizeof(FilterBlockReader));
-  *repl_filter_ptr = *filter;
+  FilterBlockReader* repl_filter_ptr;
+  if (filter) {
+    repl_filter_ptr = (FilterBlockReader*)arena_.Allocate(sizeof(FilterBlockReader));
+    *repl_filter_ptr = *filter;
+  } else {
+    repl_filter_ptr = nullptr;
+  }
 
   if (iiter->Valid()) {
     item_ptr = (SkipListItem*)arena_.Allocate(item_size);
@@ -562,9 +566,7 @@ void GlobalIndex::GlobalIndexBuilder(
                                   &gitable_, &next_level_node, is_last,
                                   is_first, &skiplist_iter_ptr);
     }
-    if (skiplist_iter_ptr != nullptr) {
-      delete skiplist_iter_ptr;
-    }
+    delete skiplist_iter_ptr;
     skiplist_iter_ptr = new GITable::Iterator(gitable_);
     (*skiplist_iter_ptr).SeekToFirst();
     S.push(gitable_);
@@ -601,9 +603,7 @@ void GlobalIndex::GlobalIndexBuilder(
                                  &gitable_, &next_level_node, true, true,
                                  &skiplist_iter_ptr);
       S.push(gitable_);
-      if (skiplist_iter_ptr != nullptr) {
-        delete skiplist_iter_ptr;
-      }
+      delete skiplist_iter_ptr;
       skiplist_iter_ptr = new GITable::Iterator(gitable_);
       (*skiplist_iter_ptr).SeekToFirst();
     }
@@ -646,7 +646,7 @@ void GlobalIndex::SearchGITable(const ReadOptions& options, Slice internal_key,
       Slice handle_value = found_item.value;
       BlockHandle handle;
       // the key is definitely not in the data block, so we just return
-      if (handle.DecodeFrom(&handle_value).ok() && 
+      if (handle.DecodeFrom(&handle_value).ok() && filter &&
             !filter->KeyMayMatch(handle.offset(), internal_key)) {
           delete [] key_data;
           delete index_iter;
