@@ -25,7 +25,7 @@
 #include "port/thread_annotations.h"
 #include "db/skiplist.h"
 #include "table/block.h"
-#include "table/filter_block.h"
+//#include "table/filter_block.h"
 
 namespace leveldb {
 
@@ -84,6 +84,7 @@ class GlobalIndex {
       void* next_level_node = nullptr;
       // The filter that manages this data block
       FilterReader* filter = nullptr;
+      SkipListItem() = default;
       SkipListItem(Slice key) {
         this->key = key;
       };
@@ -107,8 +108,13 @@ class GlobalIndex {
       explicit KeyComparator(const InternalKeyComparator* c) { comparator = c; };
       int operator()(SkipListItem a, SkipListItem b) const;
     };
-    
-    Arena arena_;
+
+    // Arenas for different types of data
+    Arena<char> arena_char_;
+    Arena<SkipListItem> arena_SkipListItem_;
+    Arena<FilterBlockReader> arena_FilterBlockReader_;
+    Arena<FilterSegmentReader> arena_FilterSegmentReader_;
+
     // If bloom filter is used, Whether to use filter blocks with file (sstable) granularity
     // If false, then use filter blocks with block granularity
     bool use_file_gran_filter_ = true;

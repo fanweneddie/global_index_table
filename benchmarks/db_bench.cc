@@ -127,6 +127,10 @@ static const char* FLAGS_db = nullptr;
 // If 2, use both index block and global index table and make comparison
 static int FLAGS_use_gitable = 0;
 
+// If bloom filter is used, Whether to use filter blocks with file (sstable) granularity
+// If false, then use filter blocks with block granularity
+static bool FLAGS_use_file_gran_filter = true;
+
 namespace leveldb {
 
 namespace {
@@ -827,7 +831,8 @@ class Benchmark {
   }
 
   void ReadSequential(ThreadState* thread) {
-    Iterator* iter = db_->NewIterator(ReadOptions(FLAGS_use_gitable));
+    Iterator* iter = db_->NewIterator(ReadOptions(FLAGS_use_gitable,
+                                                  FLAGS_use_file_gran_filter));
     int i = 0;
     int64_t bytes = 0;
     for (iter->SeekToFirst(); i < reads_ && iter->Valid(); iter->Next()) {
@@ -840,7 +845,8 @@ class Benchmark {
   }
 
   void ReadReverse(ThreadState* thread) {
-    Iterator* iter = db_->NewIterator(ReadOptions(FLAGS_use_gitable));
+    Iterator* iter = db_->NewIterator(ReadOptions(FLAGS_use_gitable,
+                                                  FLAGS_use_file_gran_filter));
     int i = 0;
     int64_t bytes = 0;
     for (iter->SeekToLast(); i < reads_ && iter->Valid(); iter->Prev()) {
@@ -853,7 +859,8 @@ class Benchmark {
   }
 
   void ReadRandom(ThreadState* thread) {
-    ReadOptions options = ReadOptions(FLAGS_use_gitable);
+    ReadOptions options = ReadOptions(FLAGS_use_gitable,
+                                      FLAGS_use_file_gran_filter);
     std::string value;
     int found = 0;
     KeyBuffer key;
@@ -871,7 +878,8 @@ class Benchmark {
   }
 
   void ReadMissing(ThreadState* thread) {
-    ReadOptions options = ReadOptions(FLAGS_use_gitable);
+    ReadOptions options = ReadOptions(FLAGS_use_gitable,
+                                      FLAGS_use_file_gran_filter);
     std::string value;
     KeyBuffer key;
     for (int i = 0; i < reads_; i++) {
@@ -884,7 +892,8 @@ class Benchmark {
   }
 
   void ReadHot(ThreadState* thread) {
-    ReadOptions options = ReadOptions(FLAGS_use_gitable);
+    ReadOptions options = ReadOptions(FLAGS_use_gitable,
+                                      FLAGS_use_file_gran_filter);
     std::string value;
     const int range = (FLAGS_num + 99) / 100;
     KeyBuffer key;
@@ -897,7 +906,8 @@ class Benchmark {
   }
 
   void SeekRandom(ThreadState* thread) {
-    ReadOptions options = ReadOptions(FLAGS_use_gitable);
+    ReadOptions options = ReadOptions(FLAGS_use_gitable,
+                                      FLAGS_use_file_gran_filter);
     int found = 0;
     KeyBuffer key;
     for (int i = 0; i < reads_; i++) {
@@ -915,7 +925,8 @@ class Benchmark {
   }
 
   void SeekOrdered(ThreadState* thread) {
-    ReadOptions options = ReadOptions(FLAGS_use_gitable);
+    ReadOptions options = ReadOptions(FLAGS_use_gitable,
+                                      FLAGS_use_file_gran_filter);
     Iterator* iter = db_->NewIterator(options);
     int found = 0;
     int k = 0;
@@ -1078,6 +1089,9 @@ int main(int argc, char** argv) {
     } else if (sscanf(argv[i], "--use_gitable=%d%c", &n, &junk) == 1 &&
                (n == 0 || n == 1 || n == 2)) {
       FLAGS_use_gitable = n;
+    } else if (sscanf(argv[i], "--use_file_gran_filter=%d%c", &n, &junk) == 1 &&
+               (n == 0 || n == 1 || n == 2)) {
+      FLAGS_use_file_gran_filter = n;
     } else {
         std::fprintf(stderr, "Invalid flag '%s'\n", argv[i]);
         std::exit(1);

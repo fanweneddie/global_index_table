@@ -78,7 +78,7 @@ class MemTable {
 
   KeyComparator comparator_;
   int refs_;
-  Arena arena_;
+  Arena<char> arena_;
   Table table_;
 };
 

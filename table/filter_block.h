@@ -59,30 +59,26 @@ class FilterReader {
 
 class FilterBlockReader : public FilterReader {
  public:
+  FilterBlockReader() = default;
   // REQUIRES: "contents" and *policy must stay live while *this is live.
   FilterBlockReader(const FilterPolicy* policy, const Slice& contents);
   bool KeyMayMatch(uint64_t block_offset, const Slice& key) const override;
+  friend class FilterSegmentReader;
  private:
   const FilterPolicy* policy_;
   const char* data_;    // Pointer to filter data (at block-start)
   const char* offset_;  // Pointer to beginning of offset array (at block-end)
   size_t num_;          // Number of entries in offset array
   size_t base_lg_;      // Encoding parameter (see kFilterBaseLg in .cc file)
-
- public:
-  const FilterPolicy* getPolicy() const { return policy_; }
-  const char* getData() const { return data_; }
-  const char* getOffset() const { return offset_; }
-  size_t getNum() const { return num_; }
-  size_t getBaseLg() const { return base_lg_; };
 };
 
 // The reader of a filter segment for a data block
 // This data structure is valid only if block_size is bigger than 1 << kFilterBaseLg
 // In this case, since a bloom filter segment is generated every 1 << kFilterBaseLg data,
 // then a data block can correspond to one bloom filter segment
-class FilterSegmentReader : public FilterReader{
+class FilterSegmentReader : public FilterReader {
  public:
+  FilterSegmentReader() = default;
   // Get a bloom filter segment according to the given bloom filter and the block offset
   // REQUIRES: the FilterBlockReader is not null
   // @param fbr: the given bloom filter block

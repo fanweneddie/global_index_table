@@ -33,7 +33,7 @@ struct Comparator {
 };
 
 TEST(SkipTest, Empty) {
-  Arena arena;
+  Arena<char> arena;
   Comparator cmp;
   SkipList<Key, Comparator> list(cmp, &arena);
   ASSERT_TRUE(!list.Contains(10));
@@ -53,7 +53,7 @@ TEST(SkipTest, InsertAndLookup) {
   const int R = 5000;
   Random rnd(1000);
   std::set<Key> keys;
-  Arena arena;
+  Arena<char> arena;
   Comparator cmp;
   SkipList<Key, Comparator> list(cmp, &arena);
   for (int i = 0; i < N; i++) {
@@ -205,7 +205,7 @@ class ConcurrentTest {
   // Current state of the test
   State current_;
 
-  Arena arena_;
+  Arena<char> arena_;
 
   // SkipList is not protected by mu_.  We just use a single writer
   // thread to modify it.

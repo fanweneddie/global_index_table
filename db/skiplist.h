@@ -36,7 +36,7 @@
 
 namespace leveldb {
 
-class Arena;
+//class Arena;
 
 template <typename Key, class Comparator>
 class SkipList {
@@ -47,8 +47,7 @@ class SkipList {
   // Create a new SkipList object that will use "cmp" for comparing keys,
   // and will allocate memory using "*arena".  Objects allocated in the arena
   // must remain allocated for the lifetime of the skiplist object.
-  
-  explicit SkipList(Comparator cmp, Arena* arena);
+  explicit SkipList(Comparator cmp, Arena<char>* arena);
 
   SkipList(const SkipList&) = delete;
   SkipList& operator=(const SkipList&) = delete;
@@ -143,7 +142,7 @@ class SkipList {
 
   // Immutable after construction
   Comparator const compare_;
-  Arena* const arena_;  // Arena used for allocations of nodes
+  Arena<char>* const arena_;  // Arena used for allocations of nodes
 
   Node* const head_;
 
@@ -437,7 +436,7 @@ typename SkipList<Key, Comparator>::Node* SkipList<Key, Comparator>::FindLast()
 }
 
 template <typename Key, class Comparator>
-SkipList<Key, Comparator>::SkipList(Comparator cmp, Arena* arena)
+SkipList<Key, Comparator>::SkipList(Comparator cmp, Arena<char>* arena)
     : compare_(cmp),
       arena_(arena),
       head_(NewNode(0 /* any key will do */, kMaxHeight)),

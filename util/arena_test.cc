@@ -9,11 +9,11 @@
 
 namespace leveldb {
 
-TEST(ArenaTest, Empty) { Arena arena; }
+TEST(ArenaTest, Empty) { Arena<char> arena; }
 
 TEST(ArenaTest, Simple) {
   std::vector<std::pair<size_t, char*>> allocated;
-  Arena arena;
+  Arena<char> arena;
   const int N = 100000;
   size_t bytes = 0;
   Random rnd(301);

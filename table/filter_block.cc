@@ -105,15 +105,15 @@ bool FilterBlockReader::KeyMayMatch(uint64_t block_offset, const Slice& key) con
 }
 
 FilterSegmentReader::FilterSegmentReader(const FilterBlockReader& fbr, uint64_t block_offset) {
-  policy_ = fbr.getPolicy();
+  policy_ = fbr.policy_;
   // get the index of filter segment offset
-  uint64_t index = block_offset >> fbr.getBaseLg();
-  if (index < fbr.getNum()) {
+  uint64_t index = block_offset >> fbr.base_lg_;
+  if (index < fbr.num_) {
     // get the starting and ending position of this filter segment
-    uint32_t start = DecodeFixed32(fbr.getOffset() + index * 4);
-    uint32_t limit = DecodeFixed32(fbr.getOffset() + index * 4 + 4);
-    if (start <= limit && limit <= static_cast<size_t>(fbr.getOffset() - fbr.getData())) {
-      filter_segment_ = Slice(fbr.getData() + start, limit - start);
+    uint32_t start = DecodeFixed32(fbr.offset_ + index * 4);
+    uint32_t limit = DecodeFixed32(fbr.offset_ + index * 4 + 4);
+    if (start <= limit && limit <= static_cast<size_t>(fbr.offset_ - fbr.data_)) {
+      filter_segment_ = Slice(fbr.data_ + start, limit - start);
     }
   }
 }

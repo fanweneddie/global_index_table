@@ -352,7 +352,8 @@ void GlobalIndex::SkipListGlobalIndexBuilder(const ReadOptions& options, Iterato
   if (filter) {
     // replicate the whole filter since a bloom filter has a file granularity
     if (use_file_gran_filter_) {
-      repl_file_filter = (FilterBlockReader*)arena_.Allocate(sizeof(FilterBlockReader));
+      repl_file_filter = arena_FilterBlockReader_.Allocate(sizeof(FilterBlockReader));
+      //repl_file_filter = new FilterBlockReader(*filter);
       *repl_file_filter = *filter;
       repl_filter = repl_file_filter;
     }
@@ -361,19 +362,19 @@ void GlobalIndex::SkipListGlobalIndexBuilder(const ReadOptions& options, Iterato
       Slice handle_value = iiter->value();
       BlockHandle handle;
       if (handle.DecodeFrom(&handle_value).ok()) {
-        repl_block_filter = (FilterSegmentReader*)arena_.Allocate(sizeof(FilterSegmentReader));
+        repl_block_filter = arena_FilterSegmentReader_.Allocate(sizeof(FilterSegmentReader));
         *repl_block_filter = FilterSegmentReader(*filter, handle.offset());
         repl_filter = repl_block_filter;
       }
     }
   }
   if (iiter->Valid()) {
-    item_ptr = (SkipListItem*)arena_.Allocate(item_size);
-    char* key_data = (char*)arena_.Allocate(iiter->key().size());
+    item_ptr = arena_SkipListItem_.Allocate(item_size);
+    char* key_data = arena_char_.Allocate(iiter->key().size());
     memcpy(key_data, iiter->key().data(), iiter->key().size());
     item_ptr->key = Slice(key_data, iiter->key().size());
 
-    char* value_data = (char*)arena_.Allocate(iiter->value().size());
+    char* value_data = arena_char_.Allocate(iiter->value().size());
     memcpy(value_data, iiter->value().data(), iiter->value().size());
     item_ptr->value = Slice(value_data, iiter->value().size());
 
@@ -405,12 +406,12 @@ void GlobalIndex::SkipListGlobalIndexBuilder(const ReadOptions& options, Iterato
       *next_level_node = nullptr;
     }
     
-    item_ptr = (SkipListItem*)arena_.Allocate(item_size);
-    char* key_data = (char*)arena_.Allocate(iiter->key().size());
+    item_ptr = arena_SkipListItem_.Allocate(item_size);
+    char* key_data = arena_char_.Allocate(iiter->key().size());
     memcpy(key_data, iiter->key().data(), iiter->key().size());
     item_ptr->key = Slice(key_data, iiter->key().size());
 
-    char* value_data = (char*)arena_.Allocate(iiter->value().size());
+    char* value_data = arena_char_.Allocate(iiter->value().size());
     memcpy(value_data, iiter->value().data(), iiter->value().size());
     item_ptr->value = Slice(value_data, iiter->value().size());
 
@@ -423,7 +424,7 @@ void GlobalIndex::SkipListGlobalIndexBuilder(const ReadOptions& options, Iterato
       Slice handle_value = iiter->value();
       BlockHandle handle;
       if (handle.DecodeFrom(&handle_value).ok()) {
-        repl_block_filter = (FilterSegmentReader*)arena_.Allocate(sizeof(FilterSegmentReader));
+        repl_block_filter = arena_FilterSegmentReader_.Allocate(sizeof(FilterSegmentReader));
         *repl_block_filter = FilterSegmentReader(*filter, handle.offset());
         repl_filter = repl_block_filter;
       } else {
@@ -442,7 +443,7 @@ void GlobalIndex::SkipListGlobalIndexBuilder(const ReadOptions& options, Iterato
                                         item_ptr->value);
     block_iter->SeekToLast();
 
-    char* key_data = (char*)arena_.Allocate(block_iter->key().size());
+    char* key_data = arena_char_.Allocate(block_iter->key().size());
     memcpy(key_data, block_iter->key().data(), block_iter->key().size());
     item_ptr->key = Slice(key_data, block_iter->key().size());
     delete block_iter;
@@ -551,11 +552,13 @@ void GlobalIndex::AddPtr(Slice key, GITable::Iterator** next_level_ptr,
 void GlobalIndex::GlobalIndexBuilder(
     const ReadOptions& options,
     std::vector<FileMetaData*> files_[config::kNumLevels]) {
+  // assign the bloom filter granularity
+  use_file_gran_filter_ = options.useGITable();
   // initialize many skiplists
   const InternalKeyComparator& icmp = vset_->icmp_;
   const KeyComparator kcmp = KeyComparator(&icmp);
   // init a new global index table
-  GITable* gitable_ = new GITable(kcmp, &arena_);
+  GITable* gitable_ = new GITable(kcmp, &arena_char_);
   GITable::Node* next_level_node = nullptr;
   std::stack<GITable*> S;
   GITable::Iterator* skiplist_iter_ptr = nullptr;
@@ -588,7 +591,7 @@ void GlobalIndex::GlobalIndexBuilder(
     skiplist_iter_ptr = new GITable::Iterator(gitable_);
     (*skiplist_iter_ptr).SeekToFirst();
     S.push(gitable_);
-    gitable_ = new GITable(kcmp, &arena_);
+    gitable_ = new GITable(kcmp, &arena_char_);
   }
   delete gitable_;
   while (!S.empty()) {
@@ -616,7 +619,7 @@ void GlobalIndex::GlobalIndexBuilder(
       FilterBlockReader* filter;
       vset->table_cache_->IndexFilterBlockGet(f->number, f->file_size, &iiter, &filter);
             
-      gitable_ = new GITable(kcmp, &arena_);
+      gitable_ = new GITable(kcmp, &arena_char_);
       SkipListGlobalIndexBuilder(options, iiter, filter, f->number, f->file_size,
                                  &gitable_, &next_level_node, true, true,
                                  &skiplist_iter_ptr);

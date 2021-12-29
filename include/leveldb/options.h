@@ -156,10 +156,11 @@ struct LEVELDB_EXPORT Options {
 struct LEVELDB_EXPORT ReadOptions {
   ReadOptions() = default;
 
-  // To pass use_gitable into ReadOptions
-  ReadOptions(int use_gitable) {
+  // To pass use_gitable and use_file_gran_filter into ReadOptions
+  ReadOptions(int use_gitable, bool use_file_gran_filter) {
     assert(use_gitable == 0 || use_gitable == 1 || use_gitable == 2);
     this->use_gitable = use_gitable;
+    this->use_file_gran_filter = use_file_gran_filter;
   }
 
   bool useGITable() const {
@@ -172,6 +173,10 @@ struct LEVELDB_EXPORT ReadOptions {
 
   bool useGITableAndIndexBlock() const {
     return use_gitable == 2;
+  }
+
+  bool useFileGranFilter() const {
+    return use_file_gran_filter;
   }
 
   // If true, all data read from underlying storage will be
@@ -193,6 +198,11 @@ struct LEVELDB_EXPORT ReadOptions {
   // If 1, only use global index table
   // If 2, use both index block and global index table and make comparison
   int use_gitable = 0;
+
+  // If bloom filter is used in global index table,
+  // this variable shows whether to use filter blocks with file (sstable) granularity
+  // If false, then use filter blocks with block granularity
+  bool use_file_gran_filter = true;
 };
 
 // Options that control write operations
