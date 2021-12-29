@@ -88,7 +88,7 @@ FilterBlockReader::FilterBlockReader(const FilterPolicy* policy,
   num_ = (n - 5 - last_word) / 4;
 }
 
-bool FilterBlockReader::KeyMayMatch(uint64_t block_offset, const Slice& key) {
+bool FilterBlockReader::KeyMayMatch(uint64_t block_offset, const Slice& key) const {
   uint64_t index = block_offset >> base_lg_;
   if (index < num_) {
     uint32_t start = DecodeFixed32(offset_ + index * 4);
@@ -102,6 +102,24 @@ bool FilterBlockReader::KeyMayMatch(uint64_t block_offset, const Slice& key) {
     }
   }
   return true;  // Errors are treated as potential matches
+}
+
+FilterSegmentReader::FilterSegmentReader(const FilterBlockReader& fbr, uint64_t block_offset) {
+  policy_ = fbr.getPolicy();
+  // get the index of filter segment offset
+  uint64_t index = block_offset >> fbr.getBaseLg();
+  if (index < fbr.getNum()) {
+    // get the starting and ending position of this filter segment
+    uint32_t start = DecodeFixed32(fbr.getOffset() + index * 4);
+    uint32_t limit = DecodeFixed32(fbr.getOffset() + index * 4 + 4);
+    if (start <= limit && limit <= static_cast<size_t>(fbr.getOffset() - fbr.getData())) {
+      filter_segment_ = Slice(fbr.getData() + start, limit - start);
+    }
+  }
+}
+
+bool FilterSegmentReader::KeyMayMatch(uint64_t block_offset, const Slice& key) const {
+  return policy_->KeyMayMatch(key, filter_segment_);
 }
 
 }  // namespace leveldb

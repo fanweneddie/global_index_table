@@ -345,15 +345,28 @@ void GlobalIndex::SkipListGlobalIndexBuilder(const ReadOptions& options, Iterato
   size_t item_size = sizeof(SkipListItem);
 
   SkipListItem* item_ptr = nullptr;
-  // the pointer to the shallow replicated filter
-  FilterBlockReader* repl_filter_ptr;
+  // the pointer to the shallow replicated filter (with both granularity)
+  FilterBlockReader* repl_file_filter = nullptr;
+  FilterSegmentReader* repl_block_filter = nullptr;
+  FilterReader* repl_filter = nullptr;
   if (filter) {
-    repl_filter_ptr = (FilterBlockReader*)arena_.Allocate(sizeof(FilterBlockReader));
-    *repl_filter_ptr = *filter;
-  } else {
-    repl_filter_ptr = nullptr;
+    // replicate the whole filter since a bloom filter has a file granularity
+    if (use_file_gran_filter_) {
+      repl_file_filter = (FilterBlockReader*)arena_.Allocate(sizeof(FilterBlockReader));
+      *repl_file_filter = *filter;
+      repl_filter = repl_file_filter;
+    }
+    // get the bloom filter segment according to the data block's offset
+    else {
+      Slice handle_value = iiter->value();
+      BlockHandle handle;
+      if (handle.DecodeFrom(&handle_value).ok()) {
+        repl_block_filter = (FilterSegmentReader*)arena_.Allocate(sizeof(FilterSegmentReader));
+        *repl_block_filter = FilterSegmentReader(*filter, handle.offset());
+        repl_filter = repl_block_filter;
+      }
+    }
   }
-
   if (iiter->Valid()) {
     item_ptr = (SkipListItem*)arena_.Allocate(item_size);
     char* key_data = (char*)arena_.Allocate(iiter->key().size());
@@ -377,7 +390,7 @@ void GlobalIndex::SkipListGlobalIndexBuilder(const ReadOptions& options, Iterato
       *next_level_node = nullptr;
     }
     item_ptr->next_level_node = *next_level_node;
-    item_ptr->filter = repl_filter_ptr;
+    item_ptr->filter = repl_filter;
   }
   iiter->Next();
   while (iiter->Valid()) {
@@ -405,7 +418,19 @@ void GlobalIndex::SkipListGlobalIndexBuilder(const ReadOptions& options, Iterato
     item_ptr->file_size = file_size;
 
     item_ptr->next_level_node = *next_level_node;
-    item_ptr->filter = repl_filter_ptr;
+    // update repl_filter_ptr for another data block
+    if (filter && !use_file_gran_filter_) {
+      Slice handle_value = iiter->value();
+      BlockHandle handle;
+      if (handle.DecodeFrom(&handle_value).ok()) {
+        repl_block_filter = (FilterSegmentReader*)arena_.Allocate(sizeof(FilterSegmentReader));
+        *repl_block_filter = FilterSegmentReader(*filter, handle.offset());
+        repl_filter = repl_block_filter;
+      } else {
+        repl_filter = nullptr;
+      }
+    }
+    item_ptr->filter = repl_filter;
     iiter->Next();
   }
   // find the max key 
@@ -635,14 +660,23 @@ void GlobalIndex::SearchGITable(const ReadOptions& options, Slice internal_key,
     SkipListItem found_item = index_iter->key();
     // use bloom filter to check whether the key is definitely not in
     if (found_item.filter) {
-      Slice handle_value = found_item.value;
-      BlockHandle handle;
-      // the key is definitely not in the data block, so we just return
-      if (handle.DecodeFrom(&handle_value).ok() && found_item.filter &&
+      // for a bloom filter with file granularity, we need to get data block's offset
+      if (use_file_gran_filter_) {
+        Slice handle_value = found_item.value;
+        BlockHandle handle;
+        // the key is definitely not in the data block, so we just return
+        if (handle.DecodeFrom(&handle_value).ok() &&
             !found_item.filter->KeyMayMatch(handle.offset(), internal_key)) {
-          delete [] key_data;
+          delete[] key_data;
           delete index_iter;
           return;
+        }
+      }
+      // for a bloom filter with block granularity, we don't need to get its offset
+      else if (!found_item.filter->KeyMayMatch(0, internal_key)) {
+        delete[] key_data;
+        delete index_iter;
+        return;
       }
     }
     VersionSet* vset = vset_;

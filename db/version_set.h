@@ -82,8 +82,8 @@ class GlobalIndex {
       uint64_t file_size;
       // the node at next level of skiplist
       void* next_level_node = nullptr;
-      // The filter of the sstable that this data block is at
-      FilterBlockReader* filter = nullptr;
+      // The filter that manages this data block
+      FilterReader* filter = nullptr;
       SkipListItem(Slice key) {
         this->key = key;
       };
@@ -92,7 +92,7 @@ class GlobalIndex {
         this->next_level_node = next_level_node;
       };
       SkipListItem(Slice key, Slice value, uint64_t file_number,
-                   void* next_level_node, FilterBlockReader* filter) {
+                   void* next_level_node, FilterReader* filter) {
         this->key = key;
         this->value = value;
         this->file_number = file_number;
@@ -109,6 +109,9 @@ class GlobalIndex {
     };
     
     Arena arena_;
+    // If bloom filter is used, Whether to use filter blocks with file (sstable) granularity
+    // If false, then use filter blocks with block granularity
+    bool use_file_gran_filter_ = true;
 
     // Search an internal key in a skip list of global index table, 
     // and the result is saved in arg_saver
