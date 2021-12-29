@@ -158,6 +158,10 @@ class DBImpl : public DB {
     return internal_comparator_.user_comparator();
   }
 
+  // The real implementation of showing global index table building time
+  // and searching time
+  void ShowRunTime();
+
   // Constant after construction
   Env* const env_;
   const InternalKeyComparator internal_comparator_;

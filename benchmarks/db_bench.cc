@@ -615,6 +615,9 @@ class Benchmark {
       if (method != nullptr) {
         RunBenchmark(num_threads, name, method);
       }
+
+      // print the run time result in testing
+      db_->ShowRunTime();
     }
   }
 

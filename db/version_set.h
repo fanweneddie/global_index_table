@@ -25,7 +25,12 @@
 #include "port/thread_annotations.h"
 #include "db/skiplist.h"
 #include "table/block.h"
-//#include "table/filter_block.h"
+
+// for statistics in testing. Note that the metric of time is ms
+// the data are defined in version_set.cc
+extern int op_count;
+extern double build_time;
+extern double search_time;
 
 namespace leveldb {
 

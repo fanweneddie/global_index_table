@@ -1475,6 +1475,11 @@ void DBImpl::GetApproximateSizes(const Range* range, int n, uint64_t* sizes) {
   v->Unref();
 }
 
+void DBImpl::ShowRunTime() {
+  std::cout << "LAST RESULT: " << op_count << " "
+            << build_time << " " << search_time << std::endl;
+}
+
 // Default implementations of convenience methods that subclasses of DB
 // can call if they wish
 Status DB::Put(const WriteOptions& opt, const Slice& key, const Slice& value) {
@@ -1534,6 +1539,9 @@ Status DB::Open(const Options& options, const std::string& dbname, DB** dbptr) {
   }
   return s;
 }
+
+// Default trivial implementation for base class DB
+void DB::ShowRunTime() {}
 
 Snapshot::~Snapshot() = default;
 

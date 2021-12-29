@@ -24,6 +24,11 @@
 #include "table/block.h"
 #include "table/format.h"
 
+// for statistics in testing. Note that the metric of time is ms
+int op_count = 0;
+double build_time = 0;
+double search_time = 0;
+
 namespace leveldb {
 
 static size_t TargetFileSize(const Options* options) {
@@ -794,8 +799,7 @@ void Version::ForEachOverlapping(Slice user_key, Slice internal_key, void* arg,
     }
   }
 }
-int op_count = 0;
-clock_t running_time = 0;
+
 // get the value from lsm tree according to key
 Status Version::Get(const ReadOptions& options, const LookupKey& k,
                     std::string* value, GetStats* stats, leveldb::GlobalIndex* global_index_) {
@@ -871,6 +875,7 @@ Status Version::Get(const ReadOptions& options, const LookupKey& k,
 
   // ***********************************************************
   clock_t start_time, end_time;
+  start_time = clock();
 
   // Build global index table if we need to use it
   if (options.useGITable()) {
@@ -879,17 +884,15 @@ Status Version::Get(const ReadOptions& options, const LookupKey& k,
     }
     if (!global_index_->global_index_exists_) {
       std::cout << "index build:" << std::endl;
-      start_time = clock();
       global_index_->vset_ = vset_;
       global_index_->GlobalIndexBuilder(options, files_);
       end_time = clock();
-      std::cout << "The run time is: "
-                << (double)(end_time - start_time) * 1000 / CLOCKS_PER_SEC
-                << "ms" << std::endl;
+      build_time = (double)(end_time - start_time) * 1000 / CLOCKS_PER_SEC;
       global_index_->global_index_exists_ = true;
     }
   }
 
+  start_time = clock();
   // my_saver shows whether the key is found by using global index table
   Saver my_saver;
   std::string my_value;
@@ -898,7 +901,6 @@ Status Version::Get(const ReadOptions& options, const LookupKey& k,
   my_saver.user_key = k.user_key();
   my_saver.value = &my_value;
 
-  start_time = clock();
   if (options.useIndexBlock()) {
     ForEachOverlapping(state.saver.user_key, state.ikey, &state, &State::Match);
   }
@@ -908,14 +910,7 @@ Status Version::Get(const ReadOptions& options, const LookupKey& k,
   }
   end_time = clock();
   op_count++;
-  running_time += (end_time - start_time);
-  if (op_count >= 100000) {
-    std::cout << "My searching time of 100000 ops is: "
-              << (double)running_time * 1000 / CLOCKS_PER_SEC << "ms"
-              << std::endl;
-    op_count = 0;
-    running_time = 0;
-  }
+  search_time += (double)(end_time - start_time) * 1000 / CLOCKS_PER_SEC;
   // **************************************************************
   if (options.useGITableAndIndexBlock()) {
     CheckIsSameResult(state.saver, my_saver);
