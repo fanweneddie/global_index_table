@@ -319,6 +319,8 @@ void CheckIsSameResult(Saver saver_1, Saver saver_2) {
     } else { 
       std::cout << "w git, not found\n";
     }
+    // only for debugging
+    exit(1);
   }
 }
 
@@ -352,7 +354,7 @@ void GlobalIndex::SkipListGlobalIndexBuilder(const ReadOptions& options, Iterato
   if (filter) {
     // replicate the whole filter since a bloom filter has a file granularity
     if (use_file_gran_filter_) {
-      repl_file_filter = arena_FilterBlockReader_.Allocate(sizeof(FilterBlockReader));
+      repl_file_filter = arena_FilterBlockReader_.Allocate(1);
       //repl_file_filter = new FilterBlockReader(*filter);
       *repl_file_filter = *filter;
       repl_filter = repl_file_filter;
@@ -362,14 +364,14 @@ void GlobalIndex::SkipListGlobalIndexBuilder(const ReadOptions& options, Iterato
       Slice handle_value = iiter->value();
       BlockHandle handle;
       if (handle.DecodeFrom(&handle_value).ok()) {
-        repl_block_filter = arena_FilterSegmentReader_.Allocate(sizeof(FilterSegmentReader));
+        repl_block_filter = arena_FilterSegmentReader_.Allocate(1);
         *repl_block_filter = FilterSegmentReader(*filter, handle.offset());
         repl_filter = repl_block_filter;
       }
     }
   }
   if (iiter->Valid()) {
-    item_ptr = arena_SkipListItem_.Allocate(item_size);
+    item_ptr = arena_SkipListItem_.Allocate(1);
     char* key_data = arena_char_.Allocate(iiter->key().size());
     memcpy(key_data, iiter->key().data(), iiter->key().size());
     item_ptr->key = Slice(key_data, iiter->key().size());
@@ -383,7 +385,7 @@ void GlobalIndex::SkipListGlobalIndexBuilder(const ReadOptions& options, Iterato
 
     if (*next_level_iter != nullptr) {
       if (is_first) {
-        (*next_level_iter)->SeekToHead();
+        (*next_level_iter)->SeekToFirst();
         *next_level_node = (*next_level_iter)->node_;
         (*next_level_iter)->Next();
       }
@@ -406,7 +408,7 @@ void GlobalIndex::SkipListGlobalIndexBuilder(const ReadOptions& options, Iterato
       *next_level_node = nullptr;
     }
     
-    item_ptr = arena_SkipListItem_.Allocate(item_size);
+    item_ptr = arena_SkipListItem_.Allocate(1);
     char* key_data = arena_char_.Allocate(iiter->key().size());
     memcpy(key_data, iiter->key().data(), iiter->key().size());
     item_ptr->key = Slice(key_data, iiter->key().size());
@@ -424,7 +426,7 @@ void GlobalIndex::SkipListGlobalIndexBuilder(const ReadOptions& options, Iterato
       Slice handle_value = iiter->value();
       BlockHandle handle;
       if (handle.DecodeFrom(&handle_value).ok()) {
-        repl_block_filter = arena_FilterSegmentReader_.Allocate(sizeof(FilterSegmentReader));
+        repl_block_filter = arena_FilterSegmentReader_.Allocate(1);
         *repl_block_filter = FilterSegmentReader(*filter, handle.offset());
         repl_filter = repl_block_filter;
       } else {
@@ -650,13 +652,12 @@ void GlobalIndex::SearchGITable(const ReadOptions& options, Slice internal_key,
   SkipListItem search_item = SkipListItem(Slice(internal_key));
 
   index_iter = new GITable::Iterator(gitable_);
-  // if (*next_level_ != nullptr) {
-  //   // std::cout << "seek with node" << std::endl;
-  //   index_iter->SeekWithNode(*item_ptr, *next_level_);
-  // } else {
-  //   // std::cout << "seek without node" << std::endl;
-  //   index_iter->Seek(*item_ptr);
-  // }
+  if (*next_level_ != nullptr) {
+    index_iter->SeekWithNode(search_item, *next_level_);
+  } else {
+    index_iter->Seek(search_item);
+  }
+
   index_iter->Seek(search_item);
   if(index_iter->Valid()) {
     // Found.
