@@ -312,6 +312,12 @@ template <typename Key, class Comparator>
 typename SkipList<Key, Comparator>::Node*
 SkipList<Key, Comparator>::FindGreaterOrEqualWithNode(const Key& key,
                                                       Node* start_node_) const {
+  // if the start node's key >= key, then just return it.
+  // or we will return start_node_->next, which may leave out the correct result
+  if (start_node_ != head_ && !KeyIsAfterNode(key, start_node_)) {
+    return start_node_;
+  }
+
   Node* x = start_node_;
   int level;
   if (x == head_) {

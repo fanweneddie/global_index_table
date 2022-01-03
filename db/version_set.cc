@@ -650,10 +650,7 @@ void GlobalIndex::SearchGITable(const ReadOptions& options, Slice internal_key,
   Status s;
   
   GITable::Iterator* index_iter = nullptr;
-  GITable::Node* next_level_node_ = nullptr;
   // use a simple static allocation
-  char* key_data = new char[internal_key.size()];
-  memcpy(key_data, internal_key.data(), internal_key.size());
   SkipListItem search_item = SkipListItem(Slice(internal_key));
 
   index_iter = new GITable::Iterator(gitable_);
@@ -663,10 +660,10 @@ void GlobalIndex::SearchGITable(const ReadOptions& options, Slice internal_key,
     index_iter->Seek(search_item);
   }
 
-  index_iter->Seek(search_item);
   if(index_iter->Valid()) {
     // Found.
     SkipListItem found_item = index_iter->key();
+    *next_level_ = (GITable::Node*)found_item.next_level_node;
     // use bloom filter to check whether the key is definitely not in
     if (found_item.filter) {
       // for a bloom filter with file granularity, we need to get data block's offset
@@ -676,14 +673,12 @@ void GlobalIndex::SearchGITable(const ReadOptions& options, Slice internal_key,
         // the key is definitely not in the data block, so we just return
         if (handle.DecodeFrom(&handle_value).ok() &&
             !found_item.filter->KeyMayMatch(handle.offset(), internal_key)) {
-          delete[] key_data;
           delete index_iter;
           return;
         }
       }
       // for a bloom filter with block granularity, we don't need to get its offset
       else if (!found_item.filter->KeyMayMatch(0, internal_key)) {
-        delete[] key_data;
         delete index_iter;
         return;
       }
@@ -691,7 +686,6 @@ void GlobalIndex::SearchGITable(const ReadOptions& options, Slice internal_key,
     VersionSet* vset = vset_;
     Iterator* block_iter;
     // 汇总level0的信息，确定下一层的指针位置。
-    next_level_node_ = (GITable::Node*)found_item.next_level_node;
     /*
     if (_islevel0) {
       if ((next_level_node_ != nullptr && *next_level_ == nullptr) ||
@@ -704,7 +698,6 @@ void GlobalIndex::SearchGITable(const ReadOptions& options, Slice internal_key,
       *next_skiplist_level_num_ = found_item.skiplist_level;
     }
     */
-    *next_level_ = next_level_node_;
     vset->table_cache_->GetByIndexBlock(options, found_item.file_number,
                                         found_item.file_size, &block_iter,
                                         found_item.value);
@@ -717,8 +710,9 @@ void GlobalIndex::SearchGITable(const ReadOptions& options, Slice internal_key,
     s = block_iter->status();
     delete block_iter;
     // found;
+  } else {
+    *next_level_ = nullptr;
   }
-  delete [] key_data;
   delete index_iter;
 }
 
