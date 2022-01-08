@@ -533,11 +533,8 @@ GlobalIndex::~GlobalIndex() {
 void GlobalIndex::AddPtr(Slice key, GITable::Iterator** next_level_ptr,
                          GITable::Node** suit_node) {
   // TODO: 增加层间指针
-  const Comparator* ucmp = vset_->icmp_.user_comparator();
   while ((*next_level_ptr)->Valid()) {
-    // std::cout << key.ToString() << std::endl;
-    // std::cout << (*next_level_ptr)->key().key.ToString() << std::endl;
-    if (ucmp->Compare((*next_level_ptr)->key().key, key) > 0) {
+    if (vset_->icmp_.Compare((*next_level_ptr)->key().key, key) > 0) {
       (*next_level_ptr)->Prev();
       if ((*next_level_ptr)->node_ == nullptr) {
         (*next_level_ptr)->SeekToHead();
