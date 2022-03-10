@@ -101,6 +101,9 @@ class GlobalIndex {
         this->next_level_node = next_level_node;
         this->filter = filter;
       }
+      // Check whether the internal key may be in the data block
+      // @param use_file_gran_filter_: this determines how we parse the filter block
+      bool KeyMaybeInDataBlock(Slice internal_key, bool use_file_gran_filter_);
     };
     // TODO:
     // Comparator

@@ -93,7 +93,13 @@ class SkipList {
     // Advance to the first entry with a key >= target
     void Seek(const Key& target);
 
+    // Seek the target in this skiplist from start node.
     void SeekWithNode(const Key& target, Node* start_node_);
+
+    // Seek a target in this skiplist.
+    // It can start with start_node_ (when start_node_ is not null),
+    // or it can start from the beginning (when start_node_ is null).
+    void SeekWithOrWithoutNode(const Key& target, Node* start_node_);
 
     // Position at the first entry in list.
     // Final state of iterator is Valid() iff list is not empty.
@@ -243,11 +249,20 @@ inline void SkipList<Key, Comparator>::Iterator::Seek(const Key& target) {
 
 // *********************************************************
 
-// seek the node whose ???
 template <typename Key, class Comparator>
 inline void SkipList<Key, Comparator>::Iterator::SeekWithNode(const Key& target,
                                                               Node* start_node_) {
   node_ = list_->FindGreaterOrEqualWithNode(target, start_node_);
+}
+
+template <typename Key, class Comparator>
+inline void SkipList<Key, Comparator>::Iterator::SeekWithOrWithoutNode(const Key& target,
+                                                                       Node* start_node_) {
+ if (start_node_ != nullptr) {
+   SeekWithNode(target, start_node_);
+ } else {
+   Seek(target);
+ }
 }
 // *********************************************************
 

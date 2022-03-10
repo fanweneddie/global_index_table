@@ -646,50 +646,20 @@ void GlobalIndex::SearchGITable(const ReadOptions& options, Slice internal_key,
   SkipListItem search_item = SkipListItem(Slice(internal_key));
 
   index_iter = new GITable::Iterator(gitable_);
-  if (*next_level_ != nullptr) {
-    index_iter->SeekWithNode(search_item, *next_level_);
-  } else {
-    index_iter->Seek(search_item);
-  }
-
-  if(index_iter->Valid()) {
+  // search the index entry in this gitable
+  index_iter->SeekWithOrWithoutNode(search_item, *next_level_);
+  if (index_iter->Valid()) {
     // Found.
     SkipListItem found_item = index_iter->key();
     *next_level_ = (GITable::Node*)found_item.next_level_node;
-    // use bloom filter to check whether the key is definitely not in
-    if (found_item.filter) {
-      // for a bloom filter with file granularity, we need to get data block's offset
-      if (use_file_gran_filter_) {
-        Slice handle_value = found_item.value;
-        BlockHandle handle;
-        // the key is definitely not in the data block, so we just return
-        if (handle.DecodeFrom(&handle_value).ok() &&
-            !found_item.filter->KeyMayMatch(handle.offset(), internal_key)) {
-          delete index_iter;
-          return;
-        }
-      }
-      // for a bloom filter with block granularity, we don't need to get its offset
-      else if (!found_item.filter->KeyMayMatch(0, internal_key)) {
-        delete index_iter;
-        return;
-      }
+    // use bloom filter to check whether the key is definitely not in data block
+    bool key_maybe_in = found_item.KeyMaybeInDataBlock(internal_key, use_file_gran_filter_);
+    if (!key_maybe_in) {
+      delete index_iter;
+      return;
     }
     VersionSet* vset = vset_;
     Iterator* block_iter;
-    // 汇总level0的信息，确定下一层的指针位置。
-    /*
-    if (_islevel0) {
-      if ((next_level_node_ != nullptr && *next_level_ == nullptr) ||
-            (found_item.skiplist_level < *next_skiplist_level_num_)) {
-        *next_level_ = next_level_node_;
-        *next_skiplist_level_num_ = found_item.skiplist_level;
-      }
-    } else {
-      *next_level_ = next_level_node_;
-      *next_skiplist_level_num_ = found_item.skiplist_level;
-    }
-    */
     vset->table_cache_->GetByIndexBlock(options, found_item.file_number,
                                         found_item.file_size, &block_iter,
                                         found_item.value);
@@ -706,6 +676,26 @@ void GlobalIndex::SearchGITable(const ReadOptions& options, Slice internal_key,
     *next_level_ = nullptr;
   }
   delete index_iter;
+}
+
+bool GlobalIndex::SkipListItem::KeyMaybeInDataBlock(Slice internal_key, bool use_file_gran_filter_) {
+  if (filter != nullptr) {
+    // for a bloom filter with file granularity, we need to get data block's offset
+    if (use_file_gran_filter_) {
+      Slice handle_value = value;
+      BlockHandle handle;
+      // the key is definitely not in the data block, so we just return
+      if (handle.DecodeFrom(&handle_value).ok() &&
+          !filter->KeyMayMatch(handle.offset(), internal_key)) {
+        return false;
+      }
+    }
+    // for a bloom filter with block granularity, we don't need to get its offset
+    else if (!filter->KeyMayMatch(0, internal_key)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 bool GlobalIndex::GetFromGlobalIndex(const ReadOptions& options, 
@@ -730,7 +720,7 @@ bool GlobalIndex::GetFromGlobalIndex(const ReadOptions& options,
   }
 
   // Search other levels
-  
+
   for (uint32_t i = 0; i < index_files_.size(); i++) {
     // std::cout << "level: " << i + 1 << std::endl;
     SearchGITable(options, internal_key, index_files_[i], &next_level_,
