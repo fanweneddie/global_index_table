@@ -68,7 +68,7 @@ class GlobalIndex {
     struct SkipListItem;
     struct KeyComparator;
     typedef SkipList<SkipListItem, KeyComparator> GITable;
-    class GitIter;
+    friend class GitIter;
 
     // the node in global index table
     // it represents an index block

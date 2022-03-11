@@ -10,11 +10,11 @@
 namespace leveldb {
 
 // Iterator of the GlobalIndex
-class GlobalIndex::GitIter : public Iterator {
+class GitIter : public Iterator {
  public:
   // Initialize the iterators of each gitable from the GlobalIndex
-  GitIter(std::vector<GITable*> index_files_level0,
-          std::vector<GITable*> index_files_,
+  GitIter(std::vector<GlobalIndex::GITable*> index_files_level0,
+          std::vector<GlobalIndex::GITable*> index_files_,
           bool use_file_gran_filter_, VersionSet* vset_);
 
   // Delete the iterators of each gitable
@@ -46,7 +46,7 @@ class GlobalIndex::GitIter : public Iterator {
 
   // Return the item node in the skiplist
   // (we don't use key() and value(), since Item() is a better encapsulation)
-  SkipListItem Item() const  {
+  GlobalIndex::SkipListItem Item() const  {
     assert(Valid() && kv_maybe_valid);
     return cur_git_->key();
   }
@@ -69,14 +69,12 @@ class GlobalIndex::GitIter : public Iterator {
 
   // the index of current iterator in itrs_
   // -1 means that the iterator of current gitable is invalid
-  int git_index = -1;
-  GITable::Iterator* cur_git_ = nullptr;
+  int cur_git_index_ = -1;
+  GlobalIndex::GITable::Iterator* cur_git_ = nullptr;
   // iterators to gitable
-  std::vector<GITable::Iterator*> itrs_;
+  std::vector<GlobalIndex::GITable::Iterator*> iters_;
   // whether a filter manages a file or a data block
   bool use_file_gran_filter_ = true;
-  // whether current key and value may be what we want
-  bool kv_maybe_valid = false;
 };
 }
 
