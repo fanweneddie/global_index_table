@@ -22,6 +22,7 @@
 #include "db/memtable.h"
 #include "db/table_cache.h"
 #include "db/version_set.h"
+#include "db/git_iter.cc"
 #include "db/write_batch_internal.h"
 #include "leveldb/db.h"
 #include "leveldb/env.h"
@@ -32,6 +33,7 @@
 #include "table/block.h"
 #include "table/merger.h"
 #include "table/two_level_iterator.h"
+#include "table/git_merging_iter.cc"
 #include "util/coding.h"
 #include "util/logging.h"
 #include "util/mutexlock.h"
@@ -1099,9 +1101,20 @@ Iterator* DBImpl::NewInternalIterator(const ReadOptions& options,
     list.push_back(imm_->NewIterator());
     imm_->Ref();
   }
-  versions_->current()->AddIterators(options, &list);
-  Iterator* internal_iter =
-      NewMergingIterator(&internal_comparator_, &list[0], list.size());
+  // build internal iterator
+  Iterator* internal_iter;
+  if (options.useGITable()) {
+    if (!global_index->global_index_exists_) {
+      global_index->vset_ = versions_;
+      global_index->GlobalIndexBuilder(options, versions_->current()->get_files_());
+      global_index->global_index_exists_ = true;
+    }
+    GITIter* git_iter = NewGITIter(*global_index, options.useFileGranFilter());
+    internal_iter = NewGITMergingIter(git_iter, options, table_cache_);
+  } else {
+    versions_->current()->AddIterators(options, &list);
+    internal_iter = NewMergingIterator(&internal_comparator_, &list[0], list.size());
+  }
   versions_->current()->Ref();
 
   IterState* cleanup = new IterState(&mutex_, mem_, imm_, versions_->current());

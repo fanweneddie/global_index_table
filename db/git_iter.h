@@ -10,15 +10,18 @@
 namespace leveldb {
 
 // Iterator of the GlobalIndex
-class GitIter : public Iterator {
+class GITIter : public Iterator {
  public:
   // Initialize the iterators of each gitable from the GlobalIndex
-  GitIter(std::vector<GlobalIndex::GITable*> index_files_level0,
+  GITIter(std::vector<GlobalIndex::GITable*> index_files_level0,
           std::vector<GlobalIndex::GITable*> index_files_,
-          bool use_file_gran_filter_, VersionSet* vset_);
+          bool use_file_gran_filter_);
+
+  // Initialize a GITIter from a given global index
+  GITIter(GlobalIndex global_index, bool use_file_gran_filter_);
 
   // Delete the iterators of each gitable
-  ~GitIter();
+  ~GITIter();
 
   // Check whether current gitable is valid to be read
   bool Valid() const override;
@@ -44,6 +47,14 @@ class GitIter : public Iterator {
   // Else, go to the last node in previous gitable
   void Prev() override;
 
+  // Get the key (max key) of current item
+  // This method is never used (but we still need to implement virtual method key())
+  Slice key() const;
+
+  // Get the value (offset) of current item
+  // This method is never used (but we still need to implement virtual method value())
+  Slice value() const;
+
   // If cur_git_ is valid, then return OK.
   // Otherwise, return NotFound.
   Status status() const override;
@@ -51,6 +62,9 @@ class GitIter : public Iterator {
   // Return the item node in the skiplist
   // (we don't use key() and value(), since Item() is a better encapsulation)
   GlobalIndex::SkipListItem Item() const;
+
+  // Check whether current gitable is the last one
+  bool CurGitIsAtLast() const;
 
  private:
   // Check whether current gitable's index is in bound

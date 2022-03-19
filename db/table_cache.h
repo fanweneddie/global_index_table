@@ -41,27 +41,24 @@ class TableCache {
              uint64_t file_size, const Slice& k, void* arg,
              void (*handle_result)(void*, const Slice&, const Slice&));
 
-
-
-
     // **********************************************
 
     // Get the index block into iiter 
     // and get the filter block into filter from a table cache
     // @param file_number:
     // @param file_size: Both are info of the file that stores the index block
-    // @param iter: The secondary pointer to an iterator over index block
+    // @param iiter: The secondary pointer to an iterator over index block
     // @param filter: The secondary pointer to a filter block
     Status IndexFilterBlockGet(uint64_t file_number, uint64_t file_size, 
                          Iterator** iiter, FilterBlockReader** filter);
 
-    // Get the iterator of a data block into iiter, given a file and a index.
+    // Get the iterator of a data block into d_iter, given a file and an index.
     // @param file_number:
     // @param file_size: Both are info of the file that stores the index block
-    // @param iiter: The secondary pointer to an iterator over data block
+    // @param d_iter: The secondary pointer to an iterator over data block
     // @param value: The index information of that data block
     Status GetByIndexBlock(const ReadOptions& options, uint64_t file_number,
-                           uint64_t file_size, Iterator** iiter, Slice& value);
+                           uint64_t file_size, Iterator** d_iter, Slice& value);
     // **********************************************
 
     // Evict any entry for the specified file number

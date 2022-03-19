@@ -6,10 +6,9 @@
 
 namespace leveldb {
 
-GitIter::GitIter(std::vector<GlobalIndex::GITable*> index_files_level0,
+GITIter::GITIter(std::vector<GlobalIndex::GITable*> index_files_level0,
                               std::vector<GlobalIndex::GITable*> index_files_,
-                              bool use_file_gran_filter_,
-                              VersionSet* vset_) {
+                              bool use_file_gran_filter_) {
   for (auto gitable = index_files_level0.begin();
        gitable != index_files_level0.end(); ++gitable) {
     iters_.push_back(new GlobalIndex::GITable::Iterator(*gitable));
@@ -19,20 +18,27 @@ GitIter::GitIter(std::vector<GlobalIndex::GITable*> index_files_level0,
     iters_.push_back(new GlobalIndex::GITable::Iterator(*gitable));
   }
   this->use_file_gran_filter_ = use_file_gran_filter_;
+
 }
 
-GitIter::~GitIter() {
+GITIter::GITIter(GlobalIndex global_index, bool use_file_gran_filter_) {
+  GITIter(global_index.index_files_level0,
+          global_index.index_files_,
+          use_file_gran_filter_);
+}
+
+GITIter::~GITIter() {
   for (auto itr_itr = iters_.begin();
        itr_itr != iters_.end(); ++itr_itr) {
     delete *itr_itr;
   }
 }
 
-bool GitIter::Valid() const {
+bool GITIter::Valid() const {
   return CurGitIsInBound() && cur_git_ != nullptr && cur_git_->Valid();
 }
 
-void GitIter::SeekToFirst() {
+void GITIter::SeekToFirst() {
   // we hope to let cur_git_ point to first gitable
   // and let it seek to first
   if (!iters_.empty()) {
@@ -47,7 +53,7 @@ void GitIter::SeekToFirst() {
   }
 }
 
-void GitIter::SeekToLast() {
+void GITIter::SeekToLast() {
   // we hope to let cur_git_ point to the last gitable
   // and let it seek to last
   if (!iters_.empty()) {
@@ -62,7 +68,7 @@ void GitIter::SeekToLast() {
   }
 }
 
-void GitIter::Seek(const Slice& target) {
+void GITIter::Seek(const Slice& target) {
   // the item in gitable to be searched
   GlobalIndex::SkipListItem search_item = GlobalIndex::SkipListItem(target);
   // the corresponding node on next level gitable, which can accelerate searching
@@ -89,7 +95,7 @@ void GitIter::Seek(const Slice& target) {
   }
 }
 
-void GitIter::Next() {
+void GITIter::Next() {
   assert(Valid());
   cur_git_->Next();
   if (!Valid()) {
@@ -100,7 +106,7 @@ void GitIter::Next() {
   }
 }
 
-void GitIter::Prev() {
+void GITIter::Prev() {
   assert(Valid());
   cur_git_->Prev();
   if (!Valid()) {
@@ -111,7 +117,17 @@ void GitIter::Prev() {
   }
 }
 
-Status GitIter::status() const {
+Slice GITIter::key() const {
+  assert(Valid());
+  return Item().key;
+}
+
+Slice GITIter::value() const {
+  assert(Valid());
+  return Item().value;
+}
+
+Status GITIter::status() const {
   if (Valid()) {
     return Status::OK();
   } else {
@@ -119,24 +135,28 @@ Status GitIter::status() const {
   }
 }
 
-GlobalIndex::SkipListItem GitIter::Item() const {
+GlobalIndex::SkipListItem GITIter::Item() const {
   assert(Valid());
   return cur_git_->key();
 }
 
-bool GitIter::CurGitIsInBound() const {
+bool GITIter::CurGitIsAtLast() const {
+  return cur_git_index_ == iters_.size() - 1;
+}
+
+bool GITIter::CurGitIsInBound() const {
   return cur_git_index_ >= 0 && cur_git_index_ < iters_.size();
 }
 
-bool GitIter::CurGitHasNext() const {
+bool GITIter::CurGitHasNext() const {
   return cur_git_index_ >= -1 && cur_git_index_ < iters_.size() - 1;
 }
 
-bool GitIter::CurGitHasPrev() const {
+bool GITIter::CurGitHasPrev() const {
   return cur_git_index_ >= 0 && cur_git_index_ < iters_.size();
 }
 
-void GitIter::GotoNextGit() {
+void GITIter::GotoNextGit() {
   if (CurGitHasNext()) {
     cur_git_index_++;
     cur_git_ = iters_[cur_git_index_];
@@ -146,7 +166,7 @@ void GitIter::GotoNextGit() {
   }
 }
 
-void GitIter::GotoPrevGit() {
+void GITIter::GotoPrevGit() {
   if (CurGitHasPrev()) {
     cur_git_index_--;
     cur_git_ = iters_[cur_git_index_];
@@ -154,6 +174,10 @@ void GitIter::GotoPrevGit() {
     cur_git_index_ = -1;
     cur_git_ = nullptr;
   }
+}
+
+Iterator* NewGITIter(GlobalIndex global_index, bool use_file_gran_filter_) {
+  return new GITIter(global_index, use_file_gran_filter_);
 }
 
 }

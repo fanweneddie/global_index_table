@@ -68,7 +68,7 @@ class GlobalIndex {
     struct SkipListItem;
     struct KeyComparator;
     typedef SkipList<SkipListItem, KeyComparator> GITable;
-    friend class GitIter;
+    friend class GITIter;
 
     // the node in global index table
     // it represents an index block
@@ -256,12 +256,9 @@ class Version {
   // Return a human readable string that describes this version's contents.
   std::string DebugString() const;
 
-// ***********************************************************
-// TODO:
-  // class GlobalIndex;
-  // GlobalIndex* global_index_;
-
-  // ***********************************************************
+  std::vector<FileMetaData*>* get_files_() const {
+    return static_cast<std::vector<FileMetaData*>*>(files_);
+  }
 
  private:
   friend class Compaction;
