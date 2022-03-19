@@ -47,7 +47,7 @@ class GitIter : public Iterator {
   // Return the item node in the skiplist
   // (we don't use key() and value(), since Item() is a better encapsulation)
   GlobalIndex::SkipListItem Item() const  {
-    assert(Valid() && kv_maybe_valid);
+    assert(Valid());
     return cur_git_->key();
   }
 
