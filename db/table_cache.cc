@@ -120,7 +120,8 @@ Status TableCache::Get(const ReadOptions& options, uint64_t file_number,
 
 
 // **************************************************************************
-
+// Given the file number and file size,
+// get the index block (stored in iiter) and filter block (stored in filter) of the file.
 Status TableCache::IndexFilterBlockGet(uint64_t file_number, uint64_t file_size, 
                          Iterator** iiter, FilterBlockReader** filter) {
   Cache::Handle* handle = nullptr;
@@ -137,15 +138,17 @@ Status TableCache::IndexFilterBlockGet(uint64_t file_number, uint64_t file_size,
   return s;
 }
 
-
+// Given the file number, file size and the corresponding offset in that file,
+// get the data block of the file (stored in d_iter).
+// Note that the offset is stored in value (because it is the value of index iterator).
 Status TableCache::GetByIndexBlock(const ReadOptions& options,
                                    uint64_t file_number, uint64_t file_size,
-                                   Iterator** iiter, Slice& value) {
+                                   Iterator** d_iter, Slice& value) {
   Cache::Handle* handle = nullptr;
   Status s = FindTable(file_number, file_size, &handle);
   if (s.ok()) {
     Table* t = reinterpret_cast<TableAndFile*>(cache_->Value(handle))->table;
-    *iiter = t->GetByIndex(options, value);
+    *d_iter = t->GetByIndex(options, value);
     cache_->Release(handle);
   }
   return s;

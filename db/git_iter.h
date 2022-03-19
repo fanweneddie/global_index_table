@@ -44,12 +44,13 @@ class GitIter : public Iterator {
   // Else, go to the last node in previous gitable
   void Prev() override;
 
+  // If cur_git_ is valid, then return OK.
+  // Otherwise, return NotFound.
+  Status status() const override;
+
   // Return the item node in the skiplist
   // (we don't use key() and value(), since Item() is a better encapsulation)
-  GlobalIndex::SkipListItem Item() const  {
-    assert(Valid());
-    return cur_git_->key();
-  }
+  GlobalIndex::SkipListItem Item() const;
 
  private:
   // Check whether current gitable's index is in bound

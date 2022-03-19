@@ -111,6 +111,19 @@ void GitIter::Prev() {
   }
 }
 
+Status GitIter::status() const {
+  if (Valid()) {
+    return Status::OK();
+  } else {
+    return Status::NotFound(Slice("current global index table is invalid."));
+  }
+}
+
+GlobalIndex::SkipListItem GitIter::Item() const {
+  assert(Valid());
+  return cur_git_->key();
+}
+
 bool GitIter::CurGitIsInBound() const {
   return cur_git_index_ >= 0 && cur_git_index_ < iters_.size();
 }
