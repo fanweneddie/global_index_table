@@ -555,7 +555,7 @@ class Benchmark {
         value_size_ = 100 * 1000;
         method = &Benchmark::WriteRandom;
       } else if (name == Slice("readseq")) {
-        method = &Benchmark::ReadSequential;
+        method = &Benchmark::CheckCorrectnessForReadSequential;
       } else if (name == Slice("readreverse")) {
         method = &Benchmark::ReadReverse;
       } else if (name == Slice("readrandom")) {
@@ -846,6 +846,49 @@ class Benchmark {
     }
     delete iter;
     thread->stats.AddBytes(bytes);
+  }
+
+  // Check whether sequential db iter is correct
+  void CheckCorrectnessForReadSequential(ThreadState* thread) {
+    Iterator* iter_with_index = db_->NewIterator(ReadOptions(0,
+                                                      false));
+    Iterator* iter_with_git = db_->NewIterator(ReadOptions(FLAGS_use_gitable,
+                                                  FLAGS_use_file_gran_filter));
+    int i = 0;
+    for (iter_with_index->SeekToFirst(), iter_with_git->SeekToFirst();
+         i < reads_ && iter_with_index->Valid() && iter_with_git->Valid();
+         iter_with_git->Next(), iter_with_index->Next()) {
+      if (!AreEqual(iter_with_index, iter_with_git)) {
+        std::cout << "at " << i <<
+            "th read, iter_with_index and git_iter don't have equal key and value.\n";
+        ShowIter(iter_with_index, "iter_with_index");
+        ShowIter(iter_with_git, "iter_with_git");
+        exit(1);
+      }
+      ++i;
+    }
+    delete iter_with_index;
+    delete iter_with_git;
+  }
+
+  // Check whether current key and value of two iterators are equal
+  bool AreEqual(Iterator* iter1, Iterator* iter2) {
+    return  iter1 && iter2 &&
+            iter1->Valid() && iter2->Valid() &&
+            iter1->key() == iter2->key() &&
+            iter1->value() == iter2->value();
+  }
+
+  // Show the current status of the iterator iter with name iter_name
+  void ShowIter(Iterator* iter, std::string iter_name) {
+    if (!iter) {
+      std::cout << iter_name << " is null." << std::endl;
+    } else if (!iter->Valid()) {
+      std::cout << iter_name << " is not valid." << std::endl;
+    } else {
+      std::cout << iter_name << " has key " << iter->key().ToString()
+                << " and value " << iter->value().ToString() << std::endl;
+    }
   }
 
   void ReadReverse(ThreadState* thread) {
