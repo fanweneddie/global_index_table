@@ -18,14 +18,12 @@ GITIter::GITIter(std::vector<GlobalIndex::GITable*> index_files_level0,
     iters_.push_back(new GlobalIndex::GITable::Iterator(*gitable));
   }
   this->use_file_gran_filter_ = use_file_gran_filter_;
-
 }
 
-GITIter::GITIter(GlobalIndex* global_index, bool use_file_gran_filter_) {
-  GITIter(global_index->index_files_level0,
-          global_index->index_files_,
-          use_file_gran_filter_);
-}
+GITIter::GITIter(GlobalIndex* global_index,
+                 bool use_file_gran_filter_) : GITIter(global_index->index_files_level0,
+                                                       global_index->index_files_,
+                                                       use_file_gran_filter_) {}
 
 GITIter::~GITIter() {
   for (auto itr_itr = iters_.begin();

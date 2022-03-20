@@ -1108,9 +1108,9 @@ Iterator* DBImpl::NewInternalIterator(const ReadOptions& options,
     list.push_back(git_merging_iter);
   } else {
     versions_->current()->AddIterators(options, &list);
+    versions_->current()->Ref();
   }
   Iterator* internal_iter = NewMergingIterator(&internal_comparator_, &list[0], list.size());
-  versions_->current()->Ref();
 
   IterState* cleanup = new IterState(&mutex_, mem_, imm_, versions_->current());
   internal_iter->RegisterCleanup(CleanupIteratorState, cleanup, nullptr);

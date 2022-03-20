@@ -79,7 +79,7 @@ class LEVELDB_EXPORT DB {
 
   // Building global index according to the options.
   // We call this method before getting keys by Get() or iterator.
-  void BuildGlobalIndex(const ReadOptions& options) {}
+  virtual void BuildGlobalIndex(const ReadOptions& options) = 0;
 
   // If the database contains an entry for "key" store the
   // corresponding value in *value and return OK.
