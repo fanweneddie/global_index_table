@@ -77,6 +77,10 @@ class LEVELDB_EXPORT DB {
   // Note: consider setting options.sync = true.
   virtual Status Write(const WriteOptions& options, WriteBatch* updates) = 0;
 
+  // Building global index according to the options.
+  // We call this method before getting keys by Get() or iterator.
+  void BuildGlobalIndex(const ReadOptions& options) {}
+
   // If the database contains an entry for "key" store the
   // corresponding value in *value and return OK.
   //

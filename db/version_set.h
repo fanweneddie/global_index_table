@@ -65,6 +65,14 @@ bool SomeFileOverlapsRange(const InternalKeyComparator& icmp,
 // and stores the index of each sstable
 class GlobalIndex {
   public:
+    GlobalIndex() {};
+    // I haven't implemented copy constructor and assignment operator,
+    // since it is troublesome to revise a lot of low level classes.
+    // So please pass pointers instead of reference :)
+    GlobalIndex(const GlobalIndex& global_index) = delete;
+    GlobalIndex& operator=(const GlobalIndex&) = delete;
+    ~GlobalIndex();
+
     struct SkipListItem;
     struct KeyComparator;
     typedef SkipList<SkipListItem, KeyComparator> GITable;
@@ -180,8 +188,6 @@ class GlobalIndex {
 
     void DeleteFile(int level, uint64_t file_number, const ReadOptions& options,
                     InternalKey smallest, InternalKey largest);
-
-    ~GlobalIndex();
     VersionSet* vset_;
 
    private:
@@ -213,6 +219,10 @@ class Version {
   // yield the contents of this Version when merged together.
   // REQUIRES: This version has been saved (see VersionSet::SaveTo)
   void AddIterators(const ReadOptions&, std::vector<Iterator*>* iters);
+
+  // Building global index according to the options.
+  // We call this method before getting keys by Get() or iterator.
+  void BuildGlobalIndex(const ReadOptions& options, GlobalIndex* global_index_);
 
   Status Get(const ReadOptions&, const LookupKey& key, std::string* val,
              GetStats* stats, leveldb::GlobalIndex* global_index_);
@@ -255,10 +265,11 @@ class Version {
 
   // Return a human readable string that describes this version's contents.
   std::string DebugString() const;
-
+  /*
   std::vector<FileMetaData*>* get_files_() const {
-    return static_cast<std::vector<FileMetaData*>*>(files_);
+    return files_;
   }
+   */
 
  private:
   friend class Compaction;

@@ -18,7 +18,7 @@ class GITIter : public Iterator {
           bool use_file_gran_filter_);
 
   // Initialize a GITIter from a given global index
-  GITIter(GlobalIndex global_index, bool use_file_gran_filter_);
+  GITIter(GlobalIndex* global_index, bool use_file_gran_filter_);
 
   // Delete the iterators of each gitable
   ~GITIter();

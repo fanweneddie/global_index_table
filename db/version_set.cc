@@ -324,6 +324,15 @@ void CheckIsSameResult(Saver saver_1, Saver saver_2) {
   }
 }
 
+GlobalIndex::~GlobalIndex() {
+  for (auto itr = index_files_level0.begin(); itr != index_files_level0.end(); ++itr) {
+    delete *itr;
+  }
+  for (auto itr = index_files_.begin(); itr != index_files_.end(); ++itr) {
+    delete *itr;
+  }
+}
+
 int GlobalIndex::KeyComparator::operator()(SkipListItem a, SkipListItem b) const {
   return comparator->Compare(a.key, b.key);
 }
@@ -519,15 +528,6 @@ void GlobalIndex::DeleteFile(int level, uint64_t file_number,
   }
   delete index_iter;
   return;
-}
-
-GlobalIndex::~GlobalIndex() {
-  for (auto itr = index_files_level0.begin(); itr != index_files_level0.end(); ++itr) {
-    delete *itr;
-  }
-  for (auto itr = index_files_.begin(); itr != index_files_.end(); ++itr) {
-    delete *itr;
-  }
 }
 
 void GlobalIndex::AddPtr(Slice key, GITable::Iterator** next_level_ptr,
@@ -776,6 +776,29 @@ void Version::ForEachOverlapping(Slice user_key, Slice internal_key, void* arg,
     }
   }
 }
+
+void Version::BuildGlobalIndex(const ReadOptions& options, GlobalIndex* global_index_) {
+  // Counting build time
+  clock_t start_time, end_time;
+  // Build global index table if we need to use it
+  if (options.useGITable()) {
+    if (global_index_ == nullptr) {
+      return;
+    }
+    if (!global_index_->global_index_exists_) {
+      std::cout << "index build:" << std::endl;
+      start_time = clock();
+      global_index_->vset_ = vset_;
+      global_index_->GlobalIndexBuilder(options, files_);
+      end_time = clock();
+      std::cout << "The run time is: "
+                << (double)(end_time - start_time) * 1000 / CLOCKS_PER_SEC
+                << "ms" << std::endl;
+      global_index_->global_index_exists_ = true;
+    }
+  }
+}
+
 int op_count = 0;
 clock_t running_time = 0;
 // get the value from lsm tree according to key
@@ -852,26 +875,8 @@ Status Version::Get(const ReadOptions& options, const LookupKey& k,
   state.saver.value = value;
 
   // ***********************************************************
+  // Counting Search time
   clock_t start_time, end_time;
-
-  // Build global index table if we need to use it
-  if (options.useGITable()) {
-    if (global_index_ == nullptr) {
-      return Status::NotFound(Slice());
-    }
-    if (!global_index_->global_index_exists_) {
-      std::cout << "index build:" << std::endl;
-      start_time = clock();
-      global_index_->vset_ = vset_;
-      global_index_->GlobalIndexBuilder(options, files_);
-      end_time = clock();
-      std::cout << "The run time is: "
-                << (double)(end_time - start_time) * 1000 / CLOCKS_PER_SEC
-                << "ms" << std::endl;
-      global_index_->global_index_exists_ = true;
-    }
-  }
-
   // my_saver shows whether the key is found by using global index table
   Saver my_saver;
   std::string my_value;

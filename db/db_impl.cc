@@ -22,7 +22,7 @@
 #include "db/memtable.h"
 #include "db/table_cache.h"
 #include "db/version_set.h"
-#include "db/git_iter.cc"
+#include "db/git_iter.h"
 #include "db/write_batch_internal.h"
 #include "leveldb/db.h"
 #include "leveldb/env.h"
@@ -1101,20 +1101,15 @@ Iterator* DBImpl::NewInternalIterator(const ReadOptions& options,
     list.push_back(imm_->NewIterator());
     imm_->Ref();
   }
-  // build internal iterator
-  Iterator* internal_iter;
+  // build internal iterator, based on whether to use global index
   if (options.useGITable()) {
-    if (!global_index->global_index_exists_) {
-      global_index->vset_ = versions_;
-      global_index->GlobalIndexBuilder(options, versions_->current()->get_files_());
-      global_index->global_index_exists_ = true;
-    }
-    GITIter* git_iter = NewGITIter(*global_index, options.useFileGranFilter());
-    internal_iter = NewGITMergingIter(git_iter, options, table_cache_);
+    GITIter* git_iter = new GITIter(global_index, options.useFileGranFilter());
+    Iterator* git_merging_iter = NewGITMergingIter(git_iter, options, table_cache_);
+    list.push_back(git_merging_iter);
   } else {
     versions_->current()->AddIterators(options, &list);
-    internal_iter = NewMergingIterator(&internal_comparator_, &list[0], list.size());
   }
+  Iterator* internal_iter = NewMergingIterator(&internal_comparator_, &list[0], list.size());
   versions_->current()->Ref();
 
   IterState* cleanup = new IterState(&mutex_, mem_, imm_, versions_->current());
@@ -1134,6 +1129,15 @@ Iterator* DBImpl::TEST_NewInternalIterator() {
 int64_t DBImpl::TEST_MaxNextLevelOverlappingBytes() {
   MutexLock l(&mutex_);
   return versions_->MaxNextLevelOverlappingBytes();
+}
+
+void DBImpl::BuildGlobalIndex(const ReadOptions& options) {
+  if (versions_ && versions_->current()) {
+    versions_->current()->BuildGlobalIndex(options, global_index);
+  } else {
+    std::cout << "Error in BuildGlobalIndex: current version does not exist.\n";
+    exit(1);
+  }
 }
 
 Status DBImpl::Get(const ReadOptions& options, const Slice& key,

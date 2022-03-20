@@ -6,6 +6,7 @@
 #define LEVELDB_GIT_MERGING_ITER_H
 
 #include "db/git_iter.h"
+#include "db/git_iter.cc"
 
 namespace leveldb {
 

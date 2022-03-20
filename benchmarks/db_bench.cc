@@ -786,6 +786,10 @@ class Benchmark {
       std::fprintf(stderr, "open error: %s\n", s.ToString().c_str());
       std::exit(1);
     }
+    // build global index if necessary
+    ReadOptions read_options = ReadOptions(FLAGS_use_gitable,
+                FLAGS_use_file_gran_filter);
+    db_->BuildGlobalIndex(read_options);
   }
 
   void OpenBench(ThreadState* thread) {

@@ -21,9 +21,9 @@ GITIter::GITIter(std::vector<GlobalIndex::GITable*> index_files_level0,
 
 }
 
-GITIter::GITIter(GlobalIndex global_index, bool use_file_gran_filter_) {
-  GITIter(global_index.index_files_level0,
-          global_index.index_files_,
+GITIter::GITIter(GlobalIndex* global_index, bool use_file_gran_filter_) {
+  GITIter(global_index->index_files_level0,
+          global_index->index_files_,
           use_file_gran_filter_);
 }
 
@@ -174,10 +174,6 @@ void GITIter::GotoPrevGit() {
     cur_git_index_ = -1;
     cur_git_ = nullptr;
   }
-}
-
-Iterator* NewGITIter(GlobalIndex global_index, bool use_file_gran_filter_) {
-  return new GITIter(global_index, use_file_gran_filter_);
 }
 
 }
