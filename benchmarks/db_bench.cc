@@ -557,7 +557,7 @@ class Benchmark {
       } else if (name == Slice("readseq")) {
         method = &Benchmark::CheckCorrectnessForReadSequential;
       } else if (name == Slice("readreverse")) {
-        method = &Benchmark::ReadReverse;
+        method = &Benchmark::CheckCorrectnessForReadReverse;
       } else if (name == Slice("readrandom")) {
         method = &Benchmark::ReadRandom;
       } else if (name == Slice("readmissing")) {
@@ -867,6 +867,31 @@ class Benchmark {
       }
       ++i;
     }
+    std::cout << "no problem in read sequential.\n";
+    delete iter_with_index;
+    delete iter_with_git;
+  }
+
+  // Check whether reverse sequential db iter is correct
+  void CheckCorrectnessForReadReverse(ThreadState* thread) {
+    Iterator* iter_with_index = db_->NewIterator(ReadOptions(0,
+                                                             false));
+    Iterator* iter_with_git = db_->NewIterator(ReadOptions(FLAGS_use_gitable,
+                                                           FLAGS_use_file_gran_filter));
+    int i = 0;
+    for (iter_with_index->SeekToLast(), iter_with_git->SeekToLast();
+         i < reads_ && iter_with_index->Valid() && iter_with_git->Valid();
+         iter_with_git->Prev(), iter_with_index->Prev()) {
+      if (!AreEqual(iter_with_index, iter_with_git)) {
+        std::cout << "at " << i <<
+            "th read, iter_with_index and git_iter don't have equal key and value.\n";
+        ShowIter(iter_with_index, "iter_with_index");
+        ShowIter(iter_with_git, "iter_with_git");
+        exit(1);
+      }
+      ++i;
+    }
+    std::cout << "no problem in read reverse.\n";
     delete iter_with_index;
     delete iter_with_git;
   }
