@@ -131,6 +131,9 @@ static int FLAGS_use_gitable = 0;
 // If false, then use filter blocks with block granularity
 static bool FLAGS_use_file_gran_filter = true;
 
+// Whether to test the correctness of git_iter by comparing it with baseline.
+static bool FLAGS_test_correctness = false;
+
 namespace leveldb {
 
 namespace {
@@ -555,9 +558,17 @@ class Benchmark {
         value_size_ = 100 * 1000;
         method = &Benchmark::WriteRandom;
       } else if (name == Slice("readseq")) {
-        method = &Benchmark::CheckCorrectnessForReadSequential;
+        if (FLAGS_test_correctness) {
+          method = &Benchmark::CheckCorrectnessForReadSequential;
+        } else {
+          method = &Benchmark::ReadSequential;
+        }
       } else if (name == Slice("readreverse")) {
-        method = &Benchmark::CheckCorrectnessForReadReverse;
+        if (FLAGS_test_correctness) {
+          method = &Benchmark::CheckCorrectnessForReadReverse;
+        } else {
+          method = &Benchmark::ReadReverse;
+        }
       } else if (name == Slice("readrandom")) {
         method = &Benchmark::ReadRandom;
       } else if (name == Slice("readmissing")) {
@@ -1162,8 +1173,11 @@ int main(int argc, char** argv) {
                (n == 0 || n == 1 || n == 2)) {
       FLAGS_use_gitable = n;
     } else if (sscanf(argv[i], "--use_file_gran_filter=%d%c", &n, &junk) == 1 &&
-               (n == 0 || n == 1 || n == 2)) {
+               (n == 0 || n == 1)) {
       FLAGS_use_file_gran_filter = n;
+    } else if (sscanf(argv[i], "--test_correctness=%d%c", &n, &junk) == 1 &&
+               (n == 0 || n == 1)) {
+      FLAGS_test_correctness = n;
     } else {
         std::fprintf(stderr, "Invalid flag '%s'\n", argv[i]);
         std::exit(1);
