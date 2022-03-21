@@ -7,6 +7,9 @@
 #include "leveldb/comparator.h"
 #include "leveldb/iterator.h"
 #include "table/iterator_wrapper.h"
+#include "table/two_level_iterator.h"
+#include "db/version_set.h"
+#include "db/git_iter.h"
 
 namespace leveldb {
 
@@ -45,8 +48,24 @@ class MergingIterator : public Iterator {
   }
 
   void Seek(const Slice& target) override {
+    // the corresponding node on next level gitable, which can accelerate searching
+    GlobalIndex::GITable::Node* next_level_node = nullptr;
     for (int i = 0; i < n_; i++) {
-      children_[i].Seek(target);
+      if (IsTwoLevelIterator(children_[i])) {
+        TwoLevelIterator* two_level_iter = dynamic_cast<TwoLevelIterator*>(children_[i].iter());
+        two_level_iter->SeekWithOrWithoutNode(target, next_level_node);
+        // get next_level_node to accelerate next search
+        if (two_level_iter->Valid() && two_level_iter->UseGit()) {
+          Iterator* index_iter = two_level_iter->Get_index_iter().iter();
+          GITIter* git_iter = dynamic_cast<GITIter*>(index_iter);
+          GlobalIndex::SkipListItem found_item = git_iter->Item();
+          next_level_node = (GlobalIndex::GITable::Node*)found_item.next_level_node;
+        } else {
+          next_level_node = nullptr;
+        }
+      } else {
+        children_[i].Seek(target);
+      }
     }
     FindSmallest();
     direction_ = kForward;
@@ -134,6 +153,15 @@ class MergingIterator : public Iterator {
 
   void FindSmallest();
   void FindLargest();
+
+  // Check whether iterator_wrapper is an encapsulation of TwoLevelIterator
+  bool IsTwoLevelIterator(IteratorWrapper iterator_wrapper) {
+    if (dynamic_cast<TwoLevelIterator*>(iterator_wrapper.iter())) {
+      return true;
+    } else {
+      return false;
+    }
+  }
 
   // We might want to use a heap in case there are lots of children.
   // For now we use a simple array since we expect a very small number

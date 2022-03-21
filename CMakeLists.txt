@@ -73,7 +73,7 @@ else(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
 
   # Disable RTTI.
   string(REGEX REPLACE "-frtti" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -frtti")
 endif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
 
 # Test whether -Wthread-safety is available. See
@@ -116,7 +116,7 @@ endif(BUILD_SHARED_LIBS)
 # Must be included before CMAKE_INSTALL_INCLUDEDIR is used.
 include(GNUInstallDirs)
 
-add_library(leveldb "" db/git_iter.h table/git_merging_iter.cc table/git_merging_iter.h)
+add_library(leveldb "" db/git_iter.cc db/git_iter.h)
 target_sources(leveldb
   PRIVATE
     "${PROJECT_BINARY_DIR}/${LEVELDB_PORT_CONFIG_DIR}/port_config.h"

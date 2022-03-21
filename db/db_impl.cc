@@ -33,7 +33,6 @@
 #include "table/block.h"
 #include "table/merger.h"
 #include "table/two_level_iterator.h"
-#include "table/git_merging_iter.cc"
 #include "util/coding.h"
 #include "util/logging.h"
 #include "util/mutexlock.h"
@@ -1103,13 +1102,11 @@ Iterator* DBImpl::NewInternalIterator(const ReadOptions& options,
   }
   // build internal iterator, based on whether to use global index
   if (options.useGITable()) {
-    GITIter* git_iter = new GITIter(global_index, options.useFileGranFilter());
-    Iterator* git_merging_iter = NewGITMergingIter(git_iter, options, table_cache_);
-    list.push_back(git_merging_iter);
+    versions_->current()->AddIteratorsForGlobalIndex(options, &list, global_index);
   } else {
-    versions_->current()->AddIterators(options, &list);
-    versions_->current()->Ref();
+    versions_->current()->AddIteratorsForIndexBlock(options, &list);
   }
+  versions_->current()->Ref();
   Iterator* internal_iter = NewMergingIterator(&internal_comparator_, &list[0], list.size());
 
   IterState* cleanup = new IterState(&mutex_, mem_, imm_, versions_->current());

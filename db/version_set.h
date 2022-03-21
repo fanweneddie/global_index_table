@@ -76,7 +76,6 @@ class GlobalIndex {
     struct SkipListItem;
     struct KeyComparator;
     typedef SkipList<SkipListItem, KeyComparator> GITable;
-    friend class GITIter;
 
     // the node in global index table
     // it represents an index block
@@ -190,6 +189,14 @@ class GlobalIndex {
                     InternalKey smallest, InternalKey largest);
     VersionSet* vset_;
 
+    std::vector<GITable*> Get_index_files_level0() const {
+      return index_files_level0;
+    }
+
+    std::vector<GITable*> Get_index_files_() const {
+      return index_files_;
+    }
+
    private:
     // skiplists of level 0 (each skiplist represents a sstable)
     std::vector<GITable*> index_files_level0;
@@ -218,7 +225,11 @@ class Version {
   // Append to *iters a sequence of iterators that will
   // yield the contents of this Version when merged together.
   // REQUIRES: This version has been saved (see VersionSet::SaveTo)
-  void AddIterators(const ReadOptions&, std::vector<Iterator*>* iters);
+  void AddIteratorsForIndexBlock(const ReadOptions&, std::vector<Iterator*>* iters);
+
+  // AddIterators for the case of using global index
+  void AddIteratorsForGlobalIndex(const ReadOptions&, std::vector<Iterator*>* iters,
+                                  GlobalIndex* global_index_);
 
   // Building global index according to the options.
   // We call this method before getting keys by Get() or iterator.
