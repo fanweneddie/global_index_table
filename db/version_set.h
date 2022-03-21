@@ -228,12 +228,12 @@ class Version {
   void AddIteratorsForIndexBlock(const ReadOptions&, std::vector<Iterator*>* iters);
 
   // AddIterators for the case of using global index
-  void AddIteratorsForGlobalIndex(const ReadOptions&, std::vector<Iterator*>* iters,
-                                  GlobalIndex* global_index_);
+  void AddIteratorsForGlobalIndex(const ReadOptions&, TableCache* table_cache,
+                                  std::vector<Iterator*>* iters, GlobalIndex* global_index_);
 
   // Building global index according to the options.
   // We call this method before getting keys by Get() or iterator.
-  void BuildGlobalIndex(const ReadOptions& options, GlobalIndex* global_index_);
+  void BuildGlobalIndex(const ReadOptions& options, GlobalIndex* global_index);
 
   Status Get(const ReadOptions&, const LookupKey& key, std::string* val,
              GetStats* stats, leveldb::GlobalIndex* global_index_);

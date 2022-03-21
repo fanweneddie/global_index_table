@@ -1102,7 +1102,7 @@ Iterator* DBImpl::NewInternalIterator(const ReadOptions& options,
   }
   // build internal iterator, based on whether to use global index
   if (options.useGITable()) {
-    versions_->current()->AddIteratorsForGlobalIndex(options, &list, global_index);
+    versions_->current()->AddIteratorsForGlobalIndex(options, table_cache_, &list, global_index);
   } else {
     versions_->current()->AddIteratorsForIndexBlock(options, &list);
   }

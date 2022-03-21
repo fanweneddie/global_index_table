@@ -251,23 +251,26 @@ void Version::AddIteratorsForIndexBlock(const ReadOptions& options,
 }
 
 void Version::AddIteratorsForGlobalIndex(const ReadOptions& options,
+                                         TableCache* table_cache,
                                          std::vector<Iterator*>* iters,
-                                         GlobalIndex* global_index_) {
-  if (!global_index_) {
+                                         GlobalIndex* global_index) {
+  if (!global_index) {
     return;
   }
   // Merge all level zero files together since they may overlap
-  std::vector<GlobalIndex::GITable*> index_files_level0 = global_index_->Get_index_files_level0();
+  std::vector<GlobalIndex::GITable*> index_files_level0 = global_index->Get_index_files_level0();
   size_t level0_size = index_files_level0.size();
   for (size_t i = 0; i < level0_size; i++) {
-    iters->push_back(new GITIter(index_files_level0[i]));
+    Iterator* git_iter = new GITIter(index_files_level0[i]);
+    iters->push_back(NewTwoLevelIterator(git_iter, nullptr, table_cache, options));
   }
 
   // Merge all levels that are > 0
-  std::vector<GlobalIndex::GITable*> other_files = global_index_->Get_index_files_();
+  std::vector<GlobalIndex::GITable*> other_files = global_index->Get_index_files_();
   size_t other_size = other_files.size();
   for (size_t i = 0; i < other_size; i++) {
-    iters->push_back(new GITIter(other_files[i]));
+    Iterator* git_iter = new GITIter(other_files[i]);
+    iters->push_back(NewTwoLevelIterator(git_iter, nullptr, table_cache, options));
   }
 }
 
