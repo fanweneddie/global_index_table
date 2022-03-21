@@ -2096,7 +2096,8 @@ class ModelDB : public DB {
     handler.map_ = &map_;
     return batch->Iterate(&handler);
   }
-
+  // We don't build global index for this testing
+  void BuildGlobalIndex(const ReadOptions& options) {};
   bool GetProperty(const Slice& property, std::string* value) override {
     return false;
   }
